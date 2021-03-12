@@ -1,0 +1,237 @@
+---
+- name: set variable overrides
+  set_fact:
+    _growfs_packages: "{{ growfs_packages | default(growfs_packages_default | sorted_get(overrides)) }}"
+    _growfs_lvs_fs: "{{ growfs_fs | default(growfs_fs_default) | sorted_get(overrides) }}"
+  vars:
+    overrides:
+      - "{{ ansible_distribution | lower }}-{{ ansible_distribution_release | lower }}"
+      - "{{ ansible_distribution | lower }}-{{ ansible_distribution_major_version }}"
+      - "{{ ansible_distribution | lower }}"
+      - "{{ ansible_os_family | lower }}"
+      - "default"
+  tags:
+    - always
+
+- fail:
+    msg: growfs_device_filter must be set
+  when: growfs_device_filter is not defined
+
+- name: install required packages
+  package:
+    name: "{{ _growfs_packages }}"
+    state: present
+
+- name: query existing lvm vg
+  command: "vgs --reportformat json --nosuffix"
+  register: vgs_query
+  changed_when: false
+
+- name: query existing lvm lvs
+  command: "lvs --reportformat json --nosuffix"
+  register: lvs_query
+  changed_when: false
+
+- name: query existing lvm pvs
+  command: "pvs --reportformat json --nosuffix"
+  register: pvs_query
+  changed_when: false
+
+- name: determine lsblk syntax
+  command: lsblk --help
+  register: lsblk_command_help
+
+- name: register lvm facts
+  set_fact:
+    lvm_vgs: "{{ (vgs_query.stdout | from_json).report | map(attribute='vg') | flatten }}"
+    lvm_lvs: "{{ (lvs_query.stdout | from_json).report | map(attribute='lv') | flatten  }}"
+    lvm_pvs: "{{ (pvs_query.stdout | from_json).report | map(attribute='pv') | flatten }}"
+
+- name: ensure unique volume group
+  fail:
+    msg: "multiple volume groups detected"
+  when: lvm_vgs | length > 1
+
+- name: initialize storage device metadata
+  set_fact:
+    __growfs_target_devices: []
+
+- name: filter storage devices
+  set_fact:
+    __growfs_target_devices: "{{ __growfs_target_devices + [target_device] }}"
+  vars:
+    target_device: "{{ item.value | combine(target_device_extra) }}"
+    target_device_partitions: "{{ (item.value.partitions | default({})) | dict_to_list('name') | list }}"
+    target_device_extra:
+      name: "{{ item.key }}"
+      used_sectors: "{{ target_device_partitions | selectattr('sectors', 'defined') | map(attribute='sectors') | map('int') | sum }}"
+      partitions: "{{ target_device_partitions }}"
+  loop_control:
+    label: "{{ item.key }}"
+  loop: "{{ ansible_devices | dict2items }}"
+  when: item.key is search(growfs_device_filter)
+
+- name: create partition on empty disks
+  parted:
+    device: "{{ device_name }}"
+    number: 1
+    state: present
+  vars:
+    device_name: "/dev/{{ item.name }}"
+  loop_control:
+    label: "{{ device_name }}"
+  loop: "{{ __growfs_target_devices | default([]) }}"
+  when: (item.partitions | length) == 0
+
+- name: refresh partition facts
+  setup:
+
+- name: refresh storage device metadata
+  set_fact:
+    __growfs_target_devices: []
+    __growfs_mountpoints: "{{ ansible_mounts | list_to_dict('device', remove_key=False) }}"
+
+- name: refresh storage devices
+  set_fact:
+    __growfs_target_devices: "{{ __growfs_target_devices + [target_device] }}"
+  vars:
+    target_device: "{{ item.value | combine(target_device_extra) }}"
+    target_device_partitions: "{{ (item.value.partitions | default({})) | dict_to_list('name') | list }}"
+    target_device_extra:
+      name: "{{ item.key }}"
+      used_sectors: "{{ target_device_partitions | selectattr('sectors', 'defined') | map(attribute='sectors') | map('int') | sum }}"
+      partitions: "{{ target_device_partitions }}"
+      num_partitions: "{{ target_device_partitions | length }}"
+  loop_control:
+    label: "{{ item.key }}"
+  loop: "{{ ansible_devices | dict2items }}"
+  when: item.key is search(growfs_device_filter)
+
+- name: resize partitions
+  command: growpart {{ partition_device }} {{ item.partitions | length }}
+  vars:
+    partition_begin: "{{ item.partitions | map(attribute='start') | map('int') | max | string }}"
+    partition_target: "{{ item.partitions | selectattr('start', 'equalto', partition_begin) | list | first }}"
+    partition_device: "/dev/{{ item.name }}"
+  loop_control:
+    label: "{{ partition_target.name }}"
+  loop: "{{ __growfs_target_devices }}"
+  when: (item.used_sectors | int) < ((item.sectors | int) * (growfs_resize_threshold | int)/100)
+
+- name: resize filesystems
+  filesystem:
+    dev: "{{ partition_device }}"
+    fstype: "{{ __growfs_mountpoints[partition_device].fstype }}"
+    resizefs: true
+    state: present
+    force: no
+  vars:
+    partition_begin: "{{ item.partitions | map(attribute='start') | map('int') | max | string }}"
+    partition_target: "{{ item.partitions | selectattr('start', 'equalto', partition_begin) | list | first }}"
+    partition_device: "/dev/{{ partition_target.name }}"
+  loop_control:
+    label: "{{ partition_device }}"
+  loop: "{{ __growfs_target_devices }}"
+  when: partition_device in __growfs_mountpoints
+
+- name: initialize pv metadata
+  set_fact:
+    vg_unassigned_pvs: []
+    vg_assigned_pvs: {}
+
+- name: filter assigned pvs
+  set_fact:
+    vg_assigned_pvs: "{{ vg_assigned_pvs | combine({ vg_name: vg_pvs }) }}"
+  vars:
+    vg_name: "{{ item.vg_name }}"
+    vg_pvs: "{{ lvm_pvs | selectattr('vg_name', 'equalto', vg_name) | map(attribute='pv_name') | list | flatten }}"
+  loop_control:
+    label: "{{ vg_name }}"
+  loop: "{{ lvm_vgs }}"
+
+- name: filter unassigned pvs
+  set_fact:
+    vg_unassigned_pvs: "{{ vg_unassigned_pvs + [partition_device] }}"
+  vars:
+    partition_disk: "{{ item.0 }}"
+    partition_data: "{{ item.1 }}"
+    partition_device: "/dev/{{ partition_data.name }}"
+  loop_control:
+    label: "{{ partition_device }}"
+  loop: "{{ q('subelements', __growfs_target_devices, 'partitions') }}"
+  when:
+    - (partition_disk.num_partitions | int) == 1
+    - partition_device not in __growfs_mountpoints
+    - partition_device not in (vg_assigned_pvs.values() | flatten(levels=1))
+
+- name: resize vg
+  lvg:
+    pvresize: yes
+    state: present
+    vg: "{{ vg_name }}"
+    pvs: "{{ (vg_assigned_pvs[vg_name] + vg_unassigned_pvs) | unique }}"
+  vars:
+    vg_name: "{{ item.vg_name }}"
+  loop_control:
+    label: "{{ item.vg_name }}"
+  loop: "{{ lvm_vgs }}"
+
+- block:
+
+    - name: filter lvm lvs
+      set_fact:
+        __growfs_target_lvs: "{{ lvm_lvs | map(attribute='lv_name') | select('match', growfs_lvs_regex ) | list }}"
+
+    - name: ensure target lvs is unambiguous
+      fail:
+        msg: "multiple logical volumes present ({{ __growfs_target_lvs.join(', ') }}) and growfs_lvs_name is unset"
+      when: (__growfs_target_lvs | length) > 1
+
+    - name: set lvs target
+      set_fact:
+        growfs_lvs_name: "{{ __growfs_target_lvs | first }}"
+      when: (__growfs_target_lvs | length) > 0
+
+    - name: clear lvs target
+      set_fact:
+        growfs_lvs_name: ''
+      when: (__growfs_target_lvs | length) == 0
+
+  when: growfs_lvs_name is undefined
+
+- block:
+
+    - name: manage logical volume
+      lvol:
+        vg: "{{ vg_name }}"
+        lv: "{{ growfs_lvs_name }}"
+        resizefs: yes
+        size: "+100%FREE"
+      vars:
+        vg_name: "{{ (lvm_vgs | first).vg_name }}"
+
+    - name: manage lvs filesystem
+      filesystem:
+        dev: "/dev/{{ vg_name }}/{{ growfs_lvs_name }}"
+        fstype: "{{ _growfs_lvs_fs }}"
+        resizefs: true
+        state: present
+      vars:
+        vg_name: "{{ (lvm_vgs | first).vg_name }}"
+
+    - block:
+
+        - name: manage mount directory
+          file:
+            path: "{{ growfs_lvs_mount }}"
+            state: directory
+
+        - name: manage lvs mount
+          mount:
+            src: "/dev/{{ vg_name }}/{{ growfs_lvs_name }}"
+            path: "{{ growfs_lvs_mount }}"
+            fstype: "{{ _growfs_lvs_fs }}"
+
+      when: growfs_lvs_mount is defined
+
+  when: growfs_lvs_name != ''

@@ -1,0 +1,114 @@
+---
+- import_playbook: inventory.yml
+
+
+- name: reconfigure guest disks
+
+  hosts: guests
+
+  gather_facts: no
+
+  become: yes
+
+  vars_files:
+    - ./vars.yml
+
+  roles:
+
+    - nephelaiio.growfs
+
+  pre_tasks:
+
+    - block:
+
+        - name: stop kvm guest
+          virt:
+            name: "{{ inventory_hostname }}"
+            command: destroy
+          failed_when: false
+
+        - name: wait for kvm guest shutdown
+          pause:
+            seconds: 60
+
+        - name: stat kvm base disk
+          stat:
+            path: "{{ cache_dir }}/{{ inventory_hostname }}.img"
+          register: guest_disk_query
+
+        - name: resize kvm base disks
+          command: "qemu-img resize -f raw {{ guest_disk }} {{ guest_disk_size }}"
+          vars:
+            guest_disk: "{{ cache_dir }}/{{ inventory_hostname }}.img"
+            guest_disk_size: "{{ 2 * (disk_size | int) }}"
+          when: (guest_disk_size | int) > (guest_disk_query.stat.size | int)
+
+        - name: stat additional kvm disk
+          stat:
+            path: "{{ cache_dir }}/{{ inventory_hostname }}.add.img"
+          register: guest_addisk_query
+
+        - name: create additional kvm disk for lvm instances
+          command: "qemu-img create -f raw {{ guest_disk }} {{ guest_disk_size }}"
+          args:
+            creates: "{{ guest_disk }}"
+          vars:
+            guest_disk: "{{ cache_dir }}/{{ inventory_hostname }}.add.img"
+            guest_disk_size: "{{ 2 * (disk_size | int) }}"
+          when:
+            - not guest_addisk_query.stat.exists
+            - partitioning_method == 'lvm'
+          notify: attach kvm guest disk
+
+        - name: manage permissions for extra kvm guest disk
+          file:
+            path: "{{ guest_disk }}"
+            owner: libvirt-qemu
+            group: kvm
+            mode: 0660
+          vars:
+            guest_disk: "{{ cache_dir }}/{{ inventory_hostname }}.add.img"
+          when: partitioning_method == 'lvm'
+
+        - name: flush_handlers
+          meta:
+            flush_handlers
+
+        - name: start kvm guest
+          virt:
+            name: "{{ inventory_hostname }}"
+            state: running
+
+      delegate_to: "{{ groups['molecule'] | first }}"
+
+    - name: wait for connection
+      wait_for_connection:
+        timeout: 120
+
+    - name: gather facts
+      setup:
+
+  handlers:
+
+    - name: create definition for additional kvm guest disk
+      template:
+        src: disk.xml.j2
+        dest: "{{ guest_disk_xml }}"
+        owner: libvirt-qemu
+        group: kvm
+        mode: 0660
+      vars:
+        guest_hostname: "{{ inventory_hostname }}"
+        guest_disk_extra_path: "{{ cache_dir }}/{{ inventory_hostname }}.add.img"
+        guest_disk_format: raw
+        guest_disk_xml: "{{ cache_dir }}/{{ guest_hostname }}.disk.xml"
+      delegate_to: "{{ groups['molecule'] | first }}"
+      listen: attach kvm guest disk
+
+    - name: attach additional kvm guest disk
+      command: "virsh attach-device {{ guest_hostname }} --file {{ guest_disk_xml }} --config"
+      vars:
+        guest_hostname: "{{ inventory_hostname }}"
+        guest_disk_xml: "{{ cache_dir }}/{{ guest_hostname }}.disk.xml"
+      delegate_to: "{{ groups['molecule'] | first }}"
+      listen: attach kvm guest disk

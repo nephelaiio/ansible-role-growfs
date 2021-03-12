@@ -1,0 +1,24 @@
+---
+galaxy_info:
+  role_name: growfs
+  author: nephelaiio
+  description: An Ansible role to install and configure growfs
+  license: MIT
+  min_ansible_version: 2.2
+  platforms:
+    - name: EL
+      versions:
+        - 7
+    - name: Archlinux
+      versions:
+        - all
+    - name: Ubuntu
+      versions:
+        - xenial
+    - name: Debian
+      versions:
+        - stretch
+  galaxy_tags: ['growfs']
+
+dependencies:
+  - nephelaiio.plugins

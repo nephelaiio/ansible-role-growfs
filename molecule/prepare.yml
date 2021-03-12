@@ -1,0 +1,8 @@
+---
+- import_playbook: cache.yml
+
+- import_playbook: inventory.yml
+
+- import_playbook: networking.yml
+
+- import_playbook: guests.yml

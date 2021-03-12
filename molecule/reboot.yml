@@ -1,0 +1,32 @@
+---
+- import_playbook: inventory.yml
+
+
+- name: reboot guest
+
+  hosts: guests
+
+  become: yes
+
+  vars_files:
+    - ./vars.yml
+
+  pre_tasks:
+
+    - block:
+
+        - name: stop kvm guest
+          virt:
+            name: "{{ inventory_hostname }}"
+            command: destroy
+          failed_when: false
+
+        - name: start kvm guest
+          virt:
+            name: "{{ inventory_hostname }}"
+            state: running
+
+      delegate_to: "{{ groups['molecule'] | first }}"
+
+    - name: wait for connection
+      wait_for_connection:

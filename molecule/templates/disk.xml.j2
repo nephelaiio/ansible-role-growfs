@@ -1,0 +1,5 @@
+<disk type='file' device='disk'>
+  <driver name='qemu' type='{{ guest_disk_format }}'/>
+  <source file='{{ guest_disk_extra_path }}'/>
+  <target dev='vdb' bus='virtio'/>
+</disk>

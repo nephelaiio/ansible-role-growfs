@@ -1,0 +1,106 @@
+---
+- import_playbook: inventory.yml
+
+
+- name: verify iso creation
+
+  hosts: molecule
+
+  gather_facts: false
+
+  vars_files:
+    - ./vars.yml
+
+  tasks:
+
+    - name: retrieve guest iso status
+      stat:
+        path: "{{ cache_dir }}/{{ guest.installer_hostname }}.iso"
+      loop_control:
+        loop_var: guest
+        label: "{{ guest.installer_hostname }}"
+      loop: "{{ guests }}"
+      register: guest_isos
+
+    - name: verify iso creation
+      fail:
+        msg: unable to find iso
+      loop_control:
+        loop_var: guest_iso
+        label: "{{ guest_iso.stat.path | default('unknown') }}"
+      loop: "{{ guest_isos.results }}"
+      when: not (guest_iso.stat.exists | bool)
+
+
+- name: verify guests
+
+  hosts: guests
+
+  gather_facts: no
+
+  vars_files:
+    - ./vars.yml
+
+  tasks:
+
+    - name: debug connection parameters
+      debug:
+        msg: "ssh {{ ansible_user }}@{{ ansible_host }} {{ ansible_ssh_common_args | default('') }} -i {{ ansible_ssh_private_key_file }} -p {{ ansible_port }}"
+
+    - name: wait for connection
+      wait_for_connection:
+        sleep: 10
+        timeout: 1800
+
+    - name: gather facts
+      setup:
+
+    - name: gather partition info
+      shell: "lsblk -l | grep /$"
+      register: lsblk_output
+
+    - name: check static partitioning
+      fail:
+        msg: "expected plain partitioning, found '{{ lsblk_output.stdout }}'"
+      when:
+        - partitioning_method == 'regular'
+        - lsblk_output.stdout is not search("part") or
+          lsblk_output.stdout is search("lvm")
+
+    - block:
+
+        - name: check lvm partitioning
+          fail:
+            msg: "lvm partitioning failed: {{ lsblk_output.stdout }}"
+          when:
+            - lsblk_output.stdout is not search('lvm')
+
+      when: partitioning_method == 'lvm'
+
+    - name: debug static disk size
+      debug:
+        msg: "{{ ((installer_root_device.size_total | int) / (1024**3)) | int }}G"
+      vars:
+        installer_root_device: "{{ ansible_mounts | selectattr('mount', 'equalto', '/') | list | first }}"
+
+    - name: check regular device size
+      fail:
+        msg: "{{ installer_disk_size }} < {{ installer_disk_threshold }} ({{ disk_size }})"
+      vars:
+        installer_disk_device: "{{ ansible_mounts | selectattr('mount', 'equalto', '/') | list | first }}"
+        installer_disk_size: "{{ installer_disk_device.size_total }}"
+        installer_disk_threshold: "{{ (1.5 * (disk_size | int)) | int }}"
+      when:
+        - (installer_disk_size | int) < (installer_disk_threshold | int)
+        - partitioning_method == 'lvm'
+
+    - name: check lvm device size
+      fail:
+        msg: "{{ installer_disk_size }} < {{ installer_disk_threshold }} ({{ disk_size }})"
+      vars:
+        installer_disk_device: "{{ ansible_mounts | selectattr('mount', 'equalto', '/') | list | first }}"
+        installer_disk_size: "{{ installer_disk_device.size_total }}"
+        installer_disk_threshold: "{{ (3.5 * (disk_size | int)) | int }}"
+      when:
+        - (installer_disk_size | int) < (installer_disk_threshold | int)
+        - partitioning_method == 'lvm'

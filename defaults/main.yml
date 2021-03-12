@@ -1,0 +1,22 @@
+---
+growfs_device_filter: "sd*"
+growfs_packages_default:
+  debian:
+    - lvm2
+    - parted
+    - cloud-guest-utils
+  redhat:
+    - lvm2
+    - parted
+    - cloud-utils-growpart
+    - gdisk
+  default: []
+growfs_resize_threshold: 95
+growfs_lvs_create: false
+growfs_lvs_regex: '[^(swap)]'
+# growfs_lvs_name
+# growfs_lvs_mount
+# growfs_lvs_fs
+growfs_fs_default:
+  redhat: xfs
+  default: ext4
