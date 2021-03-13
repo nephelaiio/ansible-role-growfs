@@ -13,7 +13,8 @@
   tags:
     - always
 
-- fail:
+- name: ensure device filter is set
+  fail:
     msg: growfs_device_filter must be set
   when: growfs_device_filter is not defined
 
@@ -40,6 +41,8 @@
 - name: determine lsblk syntax
   command: lsblk --help
   register: lsblk_command_help
+  tags:
+    - skip_ansible_lint
 
 - name: register lvm facts
   set_fact:
