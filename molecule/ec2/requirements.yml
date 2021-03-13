@@ -1,3 +1,4 @@
 ---
 roles:
-  - nephelaiio.plugins
+  - nephelaiio.ubuntu_installer
+  - nephelaiio.centos_installer
