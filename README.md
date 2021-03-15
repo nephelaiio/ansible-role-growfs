@@ -1,6 +1,6 @@
 # nephelaiio.growfs
 
-[![Build Status](https://github.com/nephelaiio/ansible-role-growfs/workflows/CI/badge.svg)](https://github.com/nephelaiio/ansible-role-growfs/actions)
+[![Build Status](https://github.com/nephelaiio/ansible-role-growfs/workflows/ci/badge.svg)](https://github.com/nephelaiio/ansible-role-growfs/actions)
 [![Ansible Galaxy](http://img.shields.io/badge/ansible--galaxy-nephelaiio.growfs.vim-blue.svg)](https://galaxy.ansible.com/nephelaiio/growfs/)
 
 An opinionated [ansible role](https://galaxy.ansible.com/nephelaiio/growfs) to grow filesystems for linux systems
