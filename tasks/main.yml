@@ -234,6 +234,8 @@
             src: "/dev/{{ vg_name }}/{{ growfs_lvs_name }}"
             path: "{{ growfs_lvs_mount }}"
             fstype: "{{ _growfs_lvs_fs }}"
+          vars:
+            vg_name: "{{ (lvm_vgs | first).vg_name }}"
 
       when: growfs_lvs_mount is defined
 
