@@ -74,6 +74,15 @@
   loop: "{{ ansible_devices | dict2items }}"
   when: item.key is search(growfs_device_filter)
 
+- name: rescan disk devices
+  command: "echo 1 > /sys/class/block/{{ target_device }}/device/rescan"
+  vars:
+    target_device: "{{ item.name }}"
+  loop_control:
+    label: "{{ device_name }}"
+  loop: "{{ __growfs_target_devices | default([]) }}"
+  when: device_name is search(growfs_device_filter)
+
 - name: create partition on empty disks
   parted:
     device: "{{ device_name }}"
