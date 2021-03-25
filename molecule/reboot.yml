@@ -13,6 +13,16 @@
 
   pre_tasks:
 
+    - name: shut down guest
+      shutdown:
+        delay: 30
+
+    - name: wait for shutdown to complete
+      pause:
+        seconds: 30
+
+  tasks:
+
     - block:
 
         - name: stop kvm guest
