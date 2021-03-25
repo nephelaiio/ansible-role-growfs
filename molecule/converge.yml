@@ -80,13 +80,19 @@
             state: running
 
       delegate_to: "{{ groups['molecule'] | first }}"
+      tags:
+        - reconfigure
 
     - name: wait for connection
       wait_for_connection:
         timeout: 120
+      tags:
+        - reconfigure
 
     - name: gather facts
       setup:
+      tags:
+        - always
 
   handlers:
 

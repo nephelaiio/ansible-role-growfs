@@ -72,7 +72,28 @@
   loop_control:
     label: "{{ item.key }}"
   loop: "{{ ansible_devices | dict2items }}"
-  when: item.key is search(growfs_device_filter)
+  when:
+    - item.key is search(growfs_device_filter)
+
+- name: filter rescan device targets
+  stat:
+    path: "/sys/class/block/{{ item.name }}/device/rescan"
+  loop_control:
+    label: "{{ item.name }}"
+  loop: "{{ __growfs_target_devices }}"
+  register: __growfs_rescan_stat
+
+- name: refresh kernel disk attribute
+  shell: "echo 1 > rescan.invocation.module_args.path"
+  loop_control:
+    loop_var: rescan
+    label: "{{ rescan.item.name }}"
+  loop: "{{ __growfs_rescan_stat.results }}"
+  when:
+    - rescan.stat.exists
+  changed_when: false
+  tags:
+    - skip_ansible_lint
 
 - name: create partition on empty disks
   parted:
@@ -167,9 +188,17 @@
     - partition_device not in __growfs_mountpoints
     - partition_device not in (vg_assigned_pvs.values() | flatten(levels=1))
 
+- name: resize pvs
+  command: "pvresize {{ item.pv_name }}"
+  loop_control:
+    label: "{{ item.pv_name }}"
+  loop: '{{ lvm_pvs }}'
+  changed_when: false
+  tags:
+    - skip_ansible_lint
+
 - name: resize vg
   lvg:
-    pvresize: yes
     state: present
     vg: "{{ vg_name }}"
     pvs: "{{ (vg_assigned_pvs[vg_name] + vg_unassigned_pvs) | unique }}"
