@@ -29,7 +29,7 @@
 
         - name: wait for kvm guest shutdown
           pause:
-            seconds: 120
+            minutes: 3
 
         - name: stat kvm base disk
           stat:
