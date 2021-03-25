@@ -13,9 +13,12 @@
 
   pre_tasks:
 
+    - name: wait for pending tasks to complete
+      pause:
+        seconds: 30
+
     - name: shut down guest
-      shutdown:
-        delay: 30
+      command: /sbin/shutdown -h now
 
     - name: wait for shutdown to complete
       pause:
