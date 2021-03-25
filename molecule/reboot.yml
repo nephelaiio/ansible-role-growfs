@@ -19,6 +19,8 @@
 
     - name: shut down guest
       command: /sbin/shutdown -h now
+      failed_when: false
+      ignore_errors: yes
 
     - name: wait for shutdown to complete
       pause:
