@@ -45,6 +45,7 @@ guests:
     installer_ks_partitioning: autopart
     installer_ks_template: centos7
     installer_type: centos
+    installer_test_mount: /
 
   - installer_hostname: centos7-gpt
     installer_ref: centos7
@@ -98,3 +99,22 @@ guests:
     installer_partitioning_method: regular
     installer_mirror: us-east-1.ec2.archive.ubuntu.com
     installer_type: ubuntu
+
+  - installer_hostname: centos7-lvs
+    installer_ref: centos7
+    installer_disk_size: "{{ 10*(1024**3) }}"
+    installer_interface:
+      static: true
+      ipaddress: "{{ __bridge_net | nthhost(6) }}"
+      network: "{{ __bridge_net | ipaddr('network') }}"
+      netmask: "{{ __bridge_net | ipaddr('netmask') }}"
+      gateway: "{{ bridge_host }}"
+      nameservers:
+        - 1.1.1.1
+        - 8.8.8.8
+    installer_partitioning_method: lvm
+    installer_ks_partitioning: autopart
+    installer_ks_template: centos7
+    installer_type: centos
+    installer_lvs_name: 'lvs'
+    installer_lvs_mount: '/lvs'

@@ -86,6 +86,8 @@
         partitioning_method: "{{ guest.installer_partitioning_method }}"
         disk_size: "{{ guest.installer_disk_size }}"
         installer_type: "{{ guest.installer_type }}"
+        growfs_lvs_name: "{{ guest.installer_lvs_name | default(omit) }}"
+        growfs_lvs_mount: "{{ guest.installer_lvs_mount | default(omit) }}"
       vars:
         guest_hostname: "{{ guest.installer_hostname }}"
         bridge_address: "{{ guest.installer_interface.ipaddress }}"

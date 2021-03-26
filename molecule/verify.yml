@@ -81,7 +81,8 @@
       debug:
         msg: "{{ ((installer_root_device.size_total | int) / (1024**3)) | int }}G"
       vars:
-        installer_root_device: "{{ ansible_mounts | selectattr('mount', 'equalto', '/') | list | first }}"
+        installer_root_device: "{{ ansible_mounts | selectattr('mount', 'equalto', growfs_lvs_mount | default('/')) | list | first }}"
+
 
     - name: check regular device size
       fail:
@@ -92,9 +93,9 @@
         installer_disk_threshold: "{{ (1.5 * (disk_size | int)) | int }}"
       when:
         - (installer_disk_size | int) < (installer_disk_threshold | int)
-        - partitioning_method == 'lvm'
+        - partitioning_method != 'lvm'
 
-    - name: check lvm device size
+    - name: check lvm root device size
       fail:
         msg: "{{ installer_disk_size }} < {{ installer_disk_threshold }} ({{ disk_size }})"
       vars:
@@ -103,4 +104,16 @@
         installer_disk_threshold: "{{ (3.5 * (disk_size | int)) | int }}"
       when:
         - (installer_disk_size | int) < (installer_disk_threshold | int)
+        - partitioning_method == 'lvm'
+        - growfs_lvs_mount is undefined
+
+    - name: check lvs root device size
+      fail:
+        msg: "{{ (installer_disk_device | first).size_total }} < {{ installer_disk_threshold }} ({{ disk_size }})"
+      vars:
+        installer_disk_device: "{{ ansible_mounts | selectattr('mount', 'equalto', growfs_lvs_mount) | list }}"
+        installer_disk_threshold: "{{ (2.0 * (disk_size | int)) | int }}"
+      when:
+        - growfs_lvs_mount is not undefined
+        - ((installer_disk_device | first).size_total | int) < (installer_disk_threshold | int)
         - partitioning_method == 'lvm'
