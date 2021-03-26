@@ -75,23 +75,14 @@
   when:
     - item.key is search(growfs_device_filter)
 
-- name: filter rescan device targets
-  stat:
-    path: "/sys/class/block/{{ item.name }}/device/rescan"
-  loop_control:
-    label: "{{ item.name }}"
-  loop: "{{ __growfs_target_devices }}"
-  register: __growfs_rescan_stat
-
-- name: refresh kernel disk attribute
+- name: refresh kernel disk info
   shell: "echo 1 > rescan.invocation.module_args.path"
   loop_control:
     loop_var: rescan
     label: "{{ rescan.item.name }}"
   loop: "{{ __growfs_rescan_stat.results }}"
-  when:
-    - rescan.stat.exists
   changed_when: false
+  ignore_errors: yes
   tags:
     - skip_ansible_lint
 
