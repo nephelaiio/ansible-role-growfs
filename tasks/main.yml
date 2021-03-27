@@ -74,8 +74,7 @@
   loop: "{{ ansible_devices | dict2items }}"
   when:
     - item.key is search(growfs_device_filter)
-    - "'vendor' in item and ((growfs_vendor_filter is defined and item.vendor is search(growfs_vendor_filter)) or growfs_vendor_filter is not defined)"
-
+    - ((growfs_vendor_filter is defined) and ('vendor' in item) and (item.vendor is search(growfs_vendor_filter))) or (growfs_vendor_filter is not defined)
 - name: refresh kernel disk info
   shell: "echo 1 > /sys/class/block/{{ item }}/device/rescan"
   loop: "{{ __growfs_target_devices | map(attribute='name') | list }}"
