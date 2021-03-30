@@ -103,7 +103,6 @@
   set_fact:
     __growfs_target_devices: []
     __growfs_mountpoints: "{{ ansible_mounts | list_to_dict('device', remove_key=False) }}"
-
 - name: refresh storage devices
   set_fact:
     __growfs_target_devices: "{{ __growfs_target_devices + [target_device] }}"
@@ -136,7 +135,6 @@
     dev: "{{ partition_device }}"
     fstype: "{{ __growfs_mountpoints[partition_device].fstype }}"
     resizefs: true
-    state: present
     force: no
   vars:
     partition_begin: "{{ item.partitions | map(attribute='start') | map('int') | max | string }}"
@@ -251,13 +249,24 @@
       vars:
         vg_name: "{{ (lvm_vgs | first).vg_name }}"
 
-    - name: manage lvs filesystem
+    - name: manage lvs filesystem (ansible < 2.10)
+      filesystem:
+        dev: "/dev/{{ vg_name }}/{{ growfs_lvs_name }}"
+        fstype: "{{ _growfs_lvs_fs }}"
+      vars:
+        vg_name: "{{ (lvm_vgs | first).vg_name }}"
+      when:
+        - ansible_version.full is version('2.10.0', '<')
+
+    - name: manage lvs filesystem (ansible >= 2.10)
       filesystem:
         dev: "/dev/{{ vg_name }}/{{ growfs_lvs_name }}"
         fstype: "{{ _growfs_lvs_fs }}"
         state: present
       vars:
         vg_name: "{{ (lvm_vgs | first).vg_name }}"
+      when:
+        - ansible_version.full is version('2.10.0', '>=')
 
     - block:
 
@@ -277,7 +286,17 @@
 
       when: growfs_lvs_mount is defined
 
-    - name: extend lvs filesystem
+    - name: extend lvs filesystem (ansible < 2.10)
+      filesystem:
+        dev: "/dev/{{ vg_name }}/{{ growfs_lvs_name }}"
+        fstype: "{{ _growfs_lvs_fs }}"
+        resizefs: true
+      vars:
+        vg_name: "{{ (lvm_vgs | first).vg_name }}"
+      when:
+        - ansible_version.full is version('2.10.0', '<')
+
+    - name: extend lvs filesystem (ansible < 2.10)
       filesystem:
         dev: "/dev/{{ vg_name }}/{{ growfs_lvs_name }}"
         fstype: "{{ _growfs_lvs_fs }}"
@@ -285,6 +304,7 @@
         state: present
       vars:
         vg_name: "{{ (lvm_vgs | first).vg_name }}"
-
+      when:
+        - ansible_version.full is version('2.10.0', '>=')
 
   when: growfs_lvs_name != ''
