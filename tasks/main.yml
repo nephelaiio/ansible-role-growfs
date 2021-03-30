@@ -120,7 +120,7 @@
   loop: "{{ ansible_devices | dict2items }}"
   when:
     - item.key is search(growfs_device_filter)
-    - ((growfs_vendor_filter is defined) and ('vendor' in item.value) and (item.value.vendor is search(growfs_vendor_filter))) or
+    - ((growfs_vendor_filter is defined) and ('vendor' in item.value) and (item.value.vendor is search(growfs_vendor_filter))) or (growfs_vendor_filter is not defined)
 
 - name: resize partitions
   command: growpart {{ partition_device }} {{ item.partitions | length }}
