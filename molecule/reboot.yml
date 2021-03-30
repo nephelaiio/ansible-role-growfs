@@ -18,9 +18,7 @@
         seconds: 30
 
     - name: shut down guest
-      command: /sbin/shutdown -h now
-      failed_when: false
-      ignore_errors: yes
+      community.general.shutdown:
 
     - name: wait for shutdown to complete
       pause:

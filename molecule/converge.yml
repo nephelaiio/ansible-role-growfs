@@ -19,17 +19,32 @@
 
   pre_tasks:
 
+    - name: wait for connection
+      wait_for_connection:
+        timeout: 120
+      tags:
+        - reconfigure
+
+    - name: shut down guest
+      community.general.shutdown:
+
+    - name: wait for shutdown to complete
+      pause:
+        seconds: 30
+
     - block:
 
-        - name: stop kvm guest
-          virt:
-            name: "{{ inventory_hostname }}"
-            command: destroy
+        - name: force kvm guest poweroff
+          command: virsh destroy {{ inventory_hostname }}
+          tags:
+            - skip_ansible_lint
+          ignore_errors: yes
           failed_when: false
+          changed_when: false
 
-        - name: wait for kvm guest shutdown
+        - name: wait for kvm guest poweroff
           pause:
-            minutes: 3
+            minutes: 2
 
         - name: stat kvm base disk
           stat:
