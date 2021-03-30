@@ -103,6 +103,7 @@
   set_fact:
     __growfs_target_devices: []
     __growfs_mountpoints: "{{ ansible_mounts | list_to_dict('device', remove_key=False) }}"
+
 - name: refresh storage devices
   set_fact:
     __growfs_target_devices: "{{ __growfs_target_devices + [target_device] }}"
@@ -117,7 +118,9 @@
   loop_control:
     label: "{{ item.key }}"
   loop: "{{ ansible_devices | dict2items }}"
-  when: item.key is search(growfs_device_filter)
+  when:
+    - item.key is search(growfs_device_filter)
+    - ((growfs_vendor_filter is defined) and ('vendor' in item.value) and (item.value.vendor is search(growfs_vendor_filter))) or
 
 - name: resize partitions
   command: growpart {{ partition_device }} {{ item.partitions | length }}
