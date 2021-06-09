@@ -155,7 +155,6 @@
     dev: "{{ partition_device }}"
     fstype: "{{ __growfs_mountpoints[partition_device].fstype }}"
     resizefs: true
-    state: present
     force: no
   vars:
     partition_begin: "{{ item.partitions | map(attribute='start') | map('int') | max | string }}"
