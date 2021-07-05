@@ -56,5 +56,6 @@
           loop_control:
             label: "{{ subnet.subnet_id }}"
           loop: "{{ q('subelements', subnet_info.results, 'subnets') }}"
+          failed_when: false
 
       delegate_to: localhost
