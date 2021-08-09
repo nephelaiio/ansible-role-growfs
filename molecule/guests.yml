@@ -260,7 +260,7 @@
 
     - name: wait for connection
       wait_for_connection:
-        timeout: 900
+        timeout: 1800
 
     - name: wait for cloud-init to complete
       pause:
