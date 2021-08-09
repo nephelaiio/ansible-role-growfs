@@ -13,6 +13,8 @@ ssh_port_base: 2280
 
 molecule_key_pair_name: "{{ aws_project_name }}"
 molecule_key_pair_path: "{{ cache_dir }}/molecule_key"
+molecule_username: molecule
+molecule_password: molecule
 
 kvm_key_pair_name: kvm_key
 kvm_key_pair_path: "{{ cache_dir }}/kvm_key"

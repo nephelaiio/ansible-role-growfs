@@ -1,4 +1,30 @@
 ---
+- name: set debug environment
+
+  hosts: molecule
+
+  vars_files:
+    - ./vars.yml
+
+  tasks:
+
+    - name: debug ec2 instance info
+      debug:
+        msg: "{{ ansible_user_id }}@{{ ansible_host }}"
+      become: no
+
+    - name: debug guest instance credentials
+      debug:
+        msg: "user={{ molecule_username }}, password={{ molecule_password }}"
+
+    - name: add debug ssh key
+      authorized_key:
+        user: "{{ ansible_user_id }}"
+        state: present
+        key: "{{ debug_pubkey }}"
+      become: no
+
+
 - name: build kvm guest installers
 
   hosts: molecule
@@ -79,8 +105,8 @@
         ubuntu_installer_target_dir: "{{ cache_dir }}"
         ubuntu_installer_image_url: "{{ iso_installers[guest.installer_ref].dest }}"
         ubuntu_installer_hostname: "{{ guest.installer_hostname }}"
-        ubuntu_installer_username: molecule
-        ubuntu_installer_password: "{{ 'molecule' | password_hash('sha512') }}"
+        ubuntu_installer_username: "{{ molecule_username }}"
+        ubuntu_installer_password: "{{ molecule_password | password_hash('sha512') }}"
         ubuntu_installer_sshkey:
           - "{{ lookup('file', kvm_key_pair_path + '.pub') }}"
           - "{{ debug_pubkey }}"
@@ -102,9 +128,9 @@
         centos_installer_target_dir: "{{ cache_dir }}"
         centos_installer_image_url: "{{ iso_installers[guest.installer_ref].dest }}"
         centos_installer_hostname: "{{ guest.installer_hostname }}"
-        centos_installer_username: molecule
-        centos_installer_password: "{{ 'molecule' | password_hash('sha512') }}"
-        centos_installer_root_password: "{{ 'molecule' | password_hash('sha512') }}"
+        centos_installer_username: "{{ molecule_username }}"
+        centos_installer_password: "{{ molecule_password | password_hash('sha512') }}"
+        centos_installer_root_password: "{{ molecule_password | password_hash('sha512') }}"
         centos_installer_baseurl: "{{ base_url | default('') }}"
         centos_installer_sshkey:
           - "{{ lookup('file', kvm_key_pair_path + '.pub') }}"
