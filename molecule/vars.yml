@@ -27,7 +27,7 @@ iso_installers:
     url: http://mirror.facebook.net/centos/7/isos/x86_64/CentOS-7-x86_64-Minimal-2009.iso
   focal:
     dest: "file://{{ cache_dir }}/focal-live.iso"
-    url: "{{ focal_url | default('https://releases.ubuntu.com/20.04.1/ubuntu-20.04.1-live-server-amd64.iso') }}"
+    url: "{{ focal_url | default('https://releases.ubuntu.com/20.04.2/ubuntu-20.04.2-live-server-amd64.iso') }}"
   bionic:
     dest: "file://{{ cache_dir }}/bionic-server.iso"
     url: "{{ focal_url | default('http://cdimage.ubuntu.com/releases/18.04/release/ubuntu-18.04.5-server-amd64.iso') }}"
