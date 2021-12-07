@@ -53,7 +53,9 @@
 - name: ensure unique volume group
   fail:
     msg: "multiple volume groups detected"
-  when: lvm_vgs | length > 1
+  when:
+    - lvm_vgs | length > 1
+    - growfs_vg_name is not defined
 
 - name: ensure volume group matches input
   fail:
@@ -190,6 +192,17 @@
 - name: initialize pv metadata
   set_fact:
     vg_unassigned_pvs: []
+    vg_assigned_pvs: "{{ { _vg_name: [] } }}"
+
+- name: filter assigned pvs
+  set_fact:
+    vg_assigned_pvs: "{{ vg_assigned_pvs | combine({ vg_name: vg_pvs }) }}"
+  vars:
+    vg_name: "{{ item.vg_name }}"
+    vg_pvs: "{{ lvm_pvs | selectattr('vg_name', 'equalto', vg_name) | map(attribute='pv_name') | list | flatten }}"
+  loop_control:
+    label: "{{ vg_name }}"
+  loop: "{{ lvm_vgs }}"
 
 - name: filter unassigned pvs
   set_fact:
@@ -219,9 +232,7 @@
   lvg:
     state: present
     vg: "{{ _vg_name }}"
-    pvs: "{{ (vg_assigned_pvs + vg_unassigned_pvs) | unique }}"
-  vars:
-    vg_assigned_pvs: "{{ lvm_pvs | selectattr('vg_name', 'equalto', _vg_name) | map(attribute='pv_name') | list | flatten }}"
+    pvs: "{{ (vg_assigned_pvs[_vg_name] + vg_unassigned_pvs) | unique }}"
 
 - block:
 
