@@ -57,20 +57,20 @@
 
 - name: ensure volume group matches input
   fail:
-    msg: "expected volume group '{{ vg_name }}', found {{ lvm_vgs | map(attribute='vg_name) | first }}"
+    msg: "expected volume group '{{ growfs_vg_name }}', found {{ lvm_vgs | map(attribute='vg_name) | first }}"
   when:
-    - vg_name is defined
+    - growfs_vg_name is defined
     - lvm_vgs | length == 1
 
 - name: register vg facts
   set_fact:
-    _vg_name: "{{ vg_name }}"
-  when: vg_name is defined
+    _vg_name: "{{ growfs_vg_name }}"
+  when: growfs_vg_name is defined
 
 - name: register vg facts
   set_fact:
     _vg_name: "{{ lvm_vgs | map(attribute='vg_name) | first }}"
-  when: vg_name is not defined
+  when: growfs_vg_name is not defined
 
 - name: initialize storage device metadata
   set_fact:
@@ -112,7 +112,7 @@
   loop_control:
     label: "{{ device_name }}"
   loop: "{{ __growfs_target_devices | default([]) }}"
-  when: (item.partitions | length) == 0
+  when: item.partitions | length == 0
 
 - name: refresh partition facts
   setup:
@@ -232,17 +232,17 @@
     - name: ensure target lvs is unambiguous
       fail:
         msg: "multiple logical volumes present ({{ __growfs_target_lvs.join(', ') }}) and growfs_lvs_name is unset"
-      when: (__growfs_target_lvs | length) > 1
+      when: __growfs_target_lvs | length > 1
 
     - name: set lvs target
       set_fact:
         growfs_lvs_name: "{{ __growfs_target_lvs | first }}"
-      when: (__growfs_target_lvs | length) > 0
+      when: __growfs_target_lvs | length > 0
 
     - name: clear lvs target
       set_fact:
         growfs_lvs_name: ''
-      when: (__growfs_target_lvs | length) == 0
+      when: __growfs_target_lvs | length == 0
 
   when: growfs_lvs_name is undefined
 
