@@ -55,6 +55,23 @@
     msg: "multiple volume groups detected"
   when: lvm_vgs | length > 1
 
+- name: ensure volume group matches input
+  fail:
+    msg: "expected volume group '{{ vg_name }}', found {{ lvm_vgs | map(attribute='vg_name) | first }}"
+  when:
+    - vg_name is defined
+    - lvm_vgs | length == 1
+
+- name: register vg facts
+  set_fact:
+    _vg_name: "{{ vg_name }}"
+  when: vg_name is defined
+
+- name: register vg facts
+  set_fact:
+    _vg_name: "{{ lvm_vgs | map(attribute='vg_name) | first }}"
+  when: vg_name is not defined
+
 - name: initialize storage device metadata
   set_fact:
     __growfs_target_devices: []
@@ -173,17 +190,6 @@
 - name: initialize pv metadata
   set_fact:
     vg_unassigned_pvs: []
-    vg_assigned_pvs: {}
-
-- name: filter assigned pvs
-  set_fact:
-    vg_assigned_pvs: "{{ vg_assigned_pvs | combine({ vg_name: vg_pvs }) }}"
-  vars:
-    vg_name: "{{ item.vg_name }}"
-    vg_pvs: "{{ lvm_pvs | selectattr('vg_name', 'equalto', vg_name) | map(attribute='pv_name') | list | flatten }}"
-  loop_control:
-    label: "{{ vg_name }}"
-  loop: "{{ lvm_vgs }}"
 
 - name: filter unassigned pvs
   set_fact:
@@ -212,13 +218,10 @@
 - name: resize vg
   lvg:
     state: present
-    vg: "{{ vg_name }}"
-    pvs: "{{ (vg_assigned_pvs[vg_name] + vg_unassigned_pvs) | unique }}"
+    vg: "{{ _vg_name }}"
+    pvs: "{{ (vg_assigned_pvs + vg_unassigned_pvs) | unique }}"
   vars:
-    vg_name: "{{ item.vg_name }}"
-  loop_control:
-    label: "{{ item.vg_name }}"
-  loop: "{{ lvm_vgs }}"
+    vg_assigned_pvs: "{{ lvm_pvs | selectattr('vg_name', 'equalto', _vg_name) | map(attribute='pv_name') | list | flatten }}"
 
 - block:
 
@@ -247,29 +250,23 @@
 
     - name: manage logical volume
       lvol:
-        vg: "{{ vg_name }}"
+        vg: "{{ _vg_name }}"
         lv: "{{ growfs_lvs_name }}"
         resizefs: yes
         size: "+100%FREE"
-      vars:
-        vg_name: "{{ (lvm_vgs | first).vg_name }}"
 
     - name: manage lvs filesystem (ansible < 2.10)
       filesystem:
-        dev: "/dev/{{ vg_name }}/{{ growfs_lvs_name }}"
+        dev: "/dev/{{ _vg_name }}/{{ growfs_lvs_name }}"
         fstype: "{{ _growfs_lvs_fs }}"
-      vars:
-        vg_name: "{{ (lvm_vgs | first).vg_name }}"
       when:
         - ansible_version.full is version('2.10.0', '<')
 
     - name: manage lvs filesystem (ansible >= 2.10)
       filesystem:
-        dev: "/dev/{{ vg_name }}/{{ growfs_lvs_name }}"
+        dev: "/dev/{{ _vg_name }}/{{ growfs_lvs_name }}"
         fstype: "{{ _growfs_lvs_fs }}"
         state: present
-      vars:
-        vg_name: "{{ (lvm_vgs | first).vg_name }}"
       when:
         - ansible_version.full is version('2.10.0', '>=')
 
@@ -282,33 +279,27 @@
 
         - name: manage lvs mount
           mount:
-            src: "/dev/{{ vg_name }}/{{ growfs_lvs_name }}"
+            src: "/dev/{{ _vg_name }}/{{ growfs_lvs_name }}"
             path: "{{ growfs_lvs_mount }}"
             fstype: "{{ _growfs_lvs_fs }}"
             state: mounted
-          vars:
-            vg_name: "{{ (lvm_vgs | first).vg_name }}"
 
       when: growfs_lvs_mount is defined
 
     - name: extend lvs filesystem (ansible < 2.10)
       filesystem:
-        dev: "/dev/{{ vg_name }}/{{ growfs_lvs_name }}"
+        dev: "/dev/{{ _vg_name }}/{{ growfs_lvs_name }}"
         fstype: "{{ _growfs_lvs_fs }}"
         resizefs: true
-      vars:
-        vg_name: "{{ (lvm_vgs | first).vg_name }}"
       when:
         - ansible_version.full is version('2.10.0', '<')
 
     - name: extend lvs filesystem (ansible < 2.10)
       filesystem:
-        dev: "/dev/{{ vg_name }}/{{ growfs_lvs_name }}"
+        dev: "/dev/{{ _vg_name }}/{{ growfs_lvs_name }}"
         fstype: "{{ _growfs_lvs_fs }}"
         resizefs: true
         state: present
-      vars:
-        vg_name: "{{ (lvm_vgs | first).vg_name }}"
       when:
         - ansible_version.full is version('2.10.0', '>=')
 
