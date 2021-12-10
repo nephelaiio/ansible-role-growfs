@@ -47,7 +47,7 @@
 - name: register lvm facts
   set_fact:
     lvm_vgs: "{{ (vgs_query.stdout | from_json).report | map(attribute='vg') | flatten }}"
-    lvm_lvs: "{{ (lvs_query.stdout | from_json).report | map(attribute='lv') | flatten  }}"
+    lvm_lvs: "{{ (lvs_query.stdout | from_json).report | map(attribute='lv') | flatten }}"
     lvm_pvs: "{{ (pvs_query.stdout | from_json).report | map(attribute='pv') | flatten }}"
 
 - name: ensure unique volume group
@@ -59,10 +59,11 @@
 
 - name: ensure volume group matches input
   fail:
-    msg: "expected volume group '{{ growfs_vg_name }}', found {{ lvm_vgs | map(attribute='vg_name) | first }}"
+    msg: "expected volume group {{ growfs_vg_name }}, found {{ lvm_vgs | map(attribute='vg_name') | first }}"
   when:
-    - growfs_vg_name is defined
     - lvm_vgs | length == 1
+    - growfs_vg_name is defined
+    - (growfs_vg_name != lvm_vgs | map(attribute='vg_name') | first)
 
 - name: register vg facts
   set_fact:
@@ -71,7 +72,7 @@
 
 - name: register vg facts
   set_fact:
-    _vg_name: "{{ lvm_vgs | map(attribute='vg_name) | first }}"
+    _vg_name: "{{ lvm_vgs | map(attribute='vg_name') | first }}"
   when: growfs_vg_name is not defined
 
 - name: initialize storage device metadata
@@ -193,6 +194,7 @@
   set_fact:
     vg_unassigned_pvs: []
     vg_assigned_pvs: "{{ { _vg_name: [] } }}"
+    mount_uuids: "{{ __growfs_mountpoints.values() | rejectattr('uuid', 'equalto', 'N/A') | map(attribute='uuid') | unique }}"
 
 - name: filter assigned pvs
   set_fact:
@@ -210,6 +212,7 @@
   vars:
     partition_disk: "{{ item.0 }}"
     partition_data: "{{ item.1 }}"
+    partition_uuids: "{{ partition_data['links']['uuids'] }}"
     partition_device: "/dev/{{ partition_data.name }}"
   loop_control:
     label: "{{ partition_device }}"
@@ -218,6 +221,7 @@
     - (partition_disk.num_partitions | int) == 1
     - partition_device not in __growfs_mountpoints
     - partition_device not in (vg_assigned_pvs.values() | flatten(levels=1))
+    - partition_uuids | intersect(mount_uuids) | length == 0
 
 - name: resize pvs
   command: "pvresize {{ item.pv_name }}"
@@ -234,11 +238,11 @@
     vg: "{{ _vg_name }}"
     pvs: "{{ (vg_assigned_pvs[_vg_name] + vg_unassigned_pvs) | unique }}"
 
-- block:
+- name: filter lvm lvs
+  set_fact:
+    __growfs_target_lvs: "{{ lvm_lvs | map(attribute='lv_name') | select('match', growfs_lvs_regex ) | list }}"
 
-    - name: filter lvm lvs
-      set_fact:
-        __growfs_target_lvs: "{{ lvm_lvs | map(attribute='lv_name') | select('match', growfs_lvs_regex ) | list }}"
+- block:
 
     - name: ensure target lvs is unambiguous
       fail:
@@ -264,7 +268,7 @@
         vg: "{{ _vg_name }}"
         lv: "{{ growfs_lvs_name }}"
         resizefs: yes
-        size: "+100%FREE"
+        size: "{{ '+' if growfs_lvs_name in __growfs_target_lvs else '' }}100%FREE"
 
     - name: manage lvs filesystem (ansible < 2.10)
       filesystem:
@@ -305,7 +309,7 @@
       when:
         - ansible_version.full is version('2.10.0', '<')
 
-    - name: extend lvs filesystem (ansible < 2.10)
+    - name: extend lvs filesystem (ansible >= 2.10)
       filesystem:
         dev: "/dev/{{ _vg_name }}/{{ growfs_lvs_name }}"
         fstype: "{{ _growfs_lvs_fs }}"
