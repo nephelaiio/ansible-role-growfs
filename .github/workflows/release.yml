@@ -5,7 +5,7 @@
 # See: https://github.com/marketplace/actions/publish-ansible-role-to-galaxy
 # See: https://github.com/ansible/galaxy/issues/46
 
-name: release
+name: Release
 on:
   push:
     tags:

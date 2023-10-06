@@ -1,35 +1,6 @@
 ---
-- name: Add guests to inventory
-
-  hosts: localhost
-
-  become: true
-
-  tasks:
-
-    - name: Add guest to inventory
-      ansible.builtin.add_host:
-        name: "{{ guest_hostname }}"
-        groups:
-          - guests
-        ansible_user: molecule
-        ansible_host: "{{ guest_address }}"
-        ansible_port: "{{ guest_port }}"
-        ansible_ssh_private_key_file: "{{ kvm_keypair }}"
-        partitioning_method: "{{ guest.installer_partitioning_method }}"
-        disk_location: "{{ cache_dir }}/{{ guest.installer_hostname }}.img"
-        disk_size: "{{ guest.installer_disk_size }}"
-        disk_index: "{{ disk_index }}"
-      vars:
-        guest_hostname: "{{ guest.installer_hostname }}"
-        bridge_address: "{{ guest.installer_interface.ipaddress }}"
-        guest_address: "{{ bridge_address }}"
-        guest_port: 22
-      loop_control:
-        loop_var: guest
-        index_var: disk_index
-        label: "{{ guest.installer_hostname }}"
-      loop: "{{ guests }}"
+- name: Build dynamic inventory
+  ansible.builtin.import_playbook: inventory.yml
 
 
 - name: Verify guests
@@ -46,73 +17,108 @@
       vars:
         _args: "{{ ansible_ssh_common_args | default('') }}"
 
-    - name: Wait for connection
-      ansible.builtin.wait_for_connection:
-        sleep: 10
-        timeout: 1800
-
-    - name: Gather facts
-      ansible.builtin.setup:
-
-    - name: Gather partition info
-      ansible.builtin.shell:
-        cmd: "set -o pipefail && lsblk -l | grep /$"
-        executable: /bin/bash
-      register: lsblk_output
-
-    - name: Check static partitioning
-      ansible.builtin.fail:
-        msg: "expected plain partitioning, found '{{ lsblk_output.stdout }}'"
-      when:
-        - partitioning_method == 'regular'
-        - lsblk_output.stdout is not search("part") or
-          lsblk_output.stdout is search("lvm")
-
-    - name: Include lvm checks
-      when: partitioning_method == 'lvm'
+    - name: Verify filesystems
       block:
 
-        - name: Verify lvm partitioning
+        - name: Wait for connection
+          ansible.builtin.wait_for_connection:
+            timeout: 600
+
+        - name: Gather facts
+          ansible.builtin.setup:
+
+        - name: Gather partition info
+          ansible.builtin.shell:
+            cmd: "set -o pipefail && lsblk -l | grep /$"
+            executable: /bin/bash
+          register: lsblk_output
+
+        - name: Check static partitioning
           ansible.builtin.fail:
-            msg: "lvm partitioning failed: {{ lsblk_output.stdout }}"
-          when: lsblk_output.stdout is not search('lvm')
+            msg: "expected plain partitioning, found '{{ lsblk_output.stdout }}'"
+          when:
+            - partitioning_method == 'regular'
+            - lsblk_output.stdout is not search("part") or
+              lsblk_output.stdout is search("lvm")
 
-    - name: Debug static disk size
-      ansible.builtin.debug:
-        msg: "{{ ((installer_root_device.size_total | int) / (1024**3)) | int }}G"
-      vars:
-        installer_root_device: "{{ ansible_mounts | selectattr('mount', 'equalto', growfs_lvs_mount | default('/')) | list | first }}"
+        - name: Include lvm checks
+          when: partitioning_method == 'lvm'
+          block:
 
-    - name: Check regular device size
-      ansible.builtin.fail:
-        msg: "{{ installer_disk_size }} < {{ installer_disk_threshold }} ({{ disk_size }})"
-      vars:
-        installer_disk_device: "{{ ansible_mounts | selectattr('mount', 'equalto', '/') | list | first }}"
-        installer_disk_size: "{{ installer_disk_device.size_total }}"
-        installer_disk_threshold: "{{ (1.5 * (disk_size | int)) | int }}"
-      when:
-        - (installer_disk_size | int) < (installer_disk_threshold | int)
-        - partitioning_method != 'lvm'
+            - name: Verify lvm partitioning
+              ansible.builtin.fail:
+                msg: "lvm partitioning failed: {{ lsblk_output.stdout }}"
+              when: lsblk_output.stdout is not search('lvm')
 
-    - name: Check lvm root device size
-      ansible.builtin.fail:
-        msg: "{{ installer_disk_size }} < {{ installer_disk_threshold }} ({{ disk_size }})"
-      vars:
-        installer_disk_device: "{{ ansible_mounts | selectattr('mount', 'equalto', '/') | list | first }}"
-        installer_disk_size: "{{ installer_disk_device.size_total }}"
-        installer_disk_threshold: "{{ (3.5 * (disk_size | int)) | int }}"
-      when:
-        - (installer_disk_size | int) < (installer_disk_threshold | int)
-        - partitioning_method == 'lvm'
-        - growfs_lvs_mount is undefined
+        - name: Debug static disk size
+          ansible.builtin.debug:
+            msg: "{{ ((installer_root_device.size_total | int) / (1024**3)) | int }}G"
+          vars:
+            installer_root_device: "{{ ansible_mounts | selectattr('mount', 'equalto', growfs_lvs_mount | default('/')) | list | first }}"
 
-    - name: Check lvs root device size
-      ansible.builtin.fail:
-        msg: "{{ (installer_disk_device | first).size_total }} < {{ installer_disk_threshold }} ({{ disk_size }})"
-      vars:
-        installer_disk_device: "{{ ansible_mounts | selectattr('mount', 'equalto', growfs_lvs_mount) | list }}"
-        installer_disk_threshold: "{{ (2.0 * (disk_size | int)) | int }}"
-      when:
-        - growfs_lvs_mount is not undefined
-        - ((installer_disk_device | first).size_total | int) < (installer_disk_threshold | int)
-        - partitioning_method == 'lvm'
+        - name: Check regular device size
+          ansible.builtin.fail:
+            msg: "{{ installer_disk_size }} < {{ installer_disk_threshold }} ({{ disk_size }})"
+          vars:
+            installer_disk_device: "{{ ansible_mounts | selectattr('mount', 'equalto', '/') | list | first }}"
+            installer_disk_size: "{{ installer_disk_device.size_total }}"
+            installer_disk_threshold: "{{ (1.5 * (disk_size | int)) | int }}"
+          when:
+            - (installer_disk_size | int) < (installer_disk_threshold | int)
+            - partitioning_method != 'lvm'
+
+        - name: Check lvm root device size
+          ansible.builtin.fail:
+            msg: "{{ installer_disk_size }} < {{ installer_disk_threshold }} ({{ disk_size }})"
+          vars:
+            installer_disk_device: "{{ ansible_mounts | selectattr('mount', 'equalto', '/') | list | first }}"
+            installer_disk_size: "{{ installer_disk_device.size_total }}"
+            installer_disk_threshold: "{{ (3.5 * (disk_size | int)) | int }}"
+          when:
+            - (installer_disk_size | int) < (installer_disk_threshold | int)
+            - partitioning_method == 'lvm'
+            - growfs_lvs_mount is undefined
+
+        - name: Check lvs root device size
+          ansible.builtin.fail:
+            msg: "{{ (installer_disk_device | first).size_total }} < {{ installer_disk_threshold }} ({{ disk_size }})"
+          vars:
+            installer_disk_device: "{{ ansible_mounts | selectattr('mount', 'equalto', growfs_lvs_mount) | list }}"
+            installer_disk_threshold: "{{ (2.0 * (disk_size | int)) | int }}"
+          when:
+            - growfs_lvs_mount is not undefined
+            - ((installer_disk_device | first).size_total | int) < (installer_disk_threshold | int)
+            - partitioning_method == 'lvm'
+
+      always:
+
+        - name: Set debug facts
+          ansible.builtin.set_fact:
+            debug_disk: "{{ disk_location }}.debug"
+            debug_hostdir: "{{ _hostdir }}"
+            debug_logfile: "{{ _logfile }}"
+            debug_crashdir: "{{ _crashdir }}"
+            debug_output_dir: "{{ output_dir }}"
+            debug_output_curtin: "{{ output_dir }}/{{ inventory_hostname }}.curtin.log"
+            debug_output_screenshot: "{{ output_dir }}/{{ inventory_hostname }}.png"
+          vars:
+            _hostdir: "{{ cache_dir }}/{{ inventory_hostname }}"
+            _logfile: "{{ _hostdir }}/var/log/installer/curtin-install.log"
+            _crashdir: "{{ _hostdir }}/var/crash/"
+
+        - name: Create output directory
+          ansible.builtin.file:
+            state: directory
+            path: "{{ debug_output_dir }}"
+          delegate_to: localhost
+          run_once: true
+
+        - name: Take guest screenshot
+          ansible.builtin.command: "virsh screenshot {{ inventory_hostname }} {{ debug_output_screenshot }}"
+          delegate_to: localhost
+          when: molecule_debug
+          become: true
+
+        - name: End play for lvm guests
+          ansible.builtin.meta: end_host
+          when: partitioning_method != 'regular'
