@@ -1,91 +1,90 @@
 ---
-- import_playbook: inventory.yml
+- name: Add guests to inventory
 
+  hosts: localhost
 
-- name: verify iso creation
-
-  hosts: molecule
-
-  gather_facts: false
-
-  vars_files:
-    - ./vars.yml
+  become: true
 
   tasks:
 
-    - name: retrieve guest iso status
-      stat:
-        path: "{{ cache_dir }}/{{ guest.installer_hostname }}.iso"
+    - name: Add guest to inventory
+      ansible.builtin.add_host:
+        name: "{{ guest_hostname }}"
+        groups:
+          - guests
+        ansible_user: molecule
+        ansible_host: "{{ guest_address }}"
+        ansible_port: "{{ guest_port }}"
+        ansible_ssh_private_key_file: "{{ kvm_keypair }}"
+        partitioning_method: "{{ guest.installer_partitioning_method }}"
+        disk_location: "{{ cache_dir }}/{{ guest.installer_hostname }}.img"
+        disk_size: "{{ guest.installer_disk_size }}"
+        disk_index: "{{ disk_index }}"
+      vars:
+        guest_hostname: "{{ guest.installer_hostname }}"
+        bridge_address: "{{ guest.installer_interface.ipaddress }}"
+        guest_address: "{{ bridge_address }}"
+        guest_port: 22
       loop_control:
         loop_var: guest
+        index_var: disk_index
         label: "{{ guest.installer_hostname }}"
       loop: "{{ guests }}"
-      register: guest_isos
-
-    - name: verify iso creation
-      fail:
-        msg: unable to find iso
-      loop_control:
-        loop_var: guest_iso
-        label: "{{ guest_iso.stat.path | default('unknown') }}"
-      loop: "{{ guest_isos.results }}"
-      when: not (guest_iso.stat.exists | bool)
 
 
-- name: verify guests
+- name: Verify guests
 
   hosts: guests
 
-  gather_facts: no
-
-  vars_files:
-    - ./vars.yml
+  gather_facts: false
 
   tasks:
 
-    - name: debug connection parameters
-      debug:
-        msg: "ssh {{ ansible_user }}@{{ ansible_host }} {{ ansible_ssh_common_args | default('') }} -i {{ ansible_ssh_private_key_file }} -p {{ ansible_port }}"
+    - name: Debug connection parameters
+      ansible.builtin.debug:
+        msg: "ssh {{ ansible_user }}@{{ ansible_host }} {{ _args }} -i {{ ansible_ssh_private_key_file }} -p {{ ansible_port }}"
+      vars:
+        _args: "{{ ansible_ssh_common_args | default('') }}"
 
-    - name: wait for connection
-      wait_for_connection:
+    - name: Wait for connection
+      ansible.builtin.wait_for_connection:
         sleep: 10
         timeout: 1800
 
-    - name: gather facts
-      setup:
+    - name: Gather facts
+      ansible.builtin.setup:
 
     - name: gather partition info
-      shell: "lsblk -l | grep /$"
+      ansible.builtin.shell:
+        cmd: "set -o pipefail && lsblk -l | grep /$"
+        executable: /bin/bash
       register: lsblk_output
 
-    - name: check static partitioning
-      fail:
+    - name: Check static partitioning
+      ansible.builtin.fail:
         msg: "expected plain partitioning, found '{{ lsblk_output.stdout }}'"
       when:
         - partitioning_method == 'regular'
         - lsblk_output.stdout is not search("part") or
           lsblk_output.stdout is search("lvm")
 
-    - block:
-
-        - name: check lvm partitioning
-          fail:
-            msg: "lvm partitioning failed: {{ lsblk_output.stdout }}"
-          when:
-            - lsblk_output.stdout is not search('lvm')
-
+    - name: Include lvm checks
       when: partitioning_method == 'lvm'
+      block:
 
-    - name: debug static disk size
-      debug:
+        - name: Verify lvm partitioning
+          ansible.builtin.fail:
+            msg: "lvm partitioning failed: {{ lsblk_output.stdout }}"
+          when: lsblk_output.stdout is not search('lvm')
+
+    - name: Debug static disk size
+      ansible.builtin.debug:
         msg: "{{ ((installer_root_device.size_total | int) / (1024**3)) | int }}G"
       vars:
         installer_root_device: "{{ ansible_mounts | selectattr('mount', 'equalto', growfs_lvs_mount | default('/')) | list | first }}"
 
-
-    - name: check regular device size
-      fail:
+    - name: Check regular device size
+      ansible.builtin.fail:
         msg: "{{ installer_disk_size }} < {{ installer_disk_threshold }} ({{ disk_size }})"
       vars:
         installer_disk_device: "{{ ansible_mounts | selectattr('mount', 'equalto', '/') | list | first }}"
@@ -95,8 +94,8 @@
         - (installer_disk_size | int) < (installer_disk_threshold | int)
         - partitioning_method != 'lvm'
 
-    - name: check lvm root device size
-      fail:
+    - name: Check lvm root device size
+      ansible.builtin.fail:
         msg: "{{ installer_disk_size }} < {{ installer_disk_threshold }} ({{ disk_size }})"
       vars:
         installer_disk_device: "{{ ansible_mounts | selectattr('mount', 'equalto', '/') | list | first }}"
@@ -108,7 +107,7 @@
         - growfs_lvs_mount is undefined
 
     - name: check lvs root device size
-      fail:
+      ansible.builtin.fail:
         msg: "{{ (installer_disk_device | first).size_total }} < {{ installer_disk_threshold }} ({{ disk_size }})"
       vars:
         installer_disk_device: "{{ ansible_mounts | selectattr('mount', 'equalto', growfs_lvs_mount) | list }}"

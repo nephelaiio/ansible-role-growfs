@@ -1,0 +1,4 @@
+---
+- name: Fail for static partitioned hosts
+  ansible.builtin.fail:
+    msg: "unsupported partitioning scheme"

@@ -1,0 +1,76 @@
+---
+- name: Prepare host networking
+
+  hosts: localhost
+
+  become: true
+
+  tasks:
+
+    - name: Update apt package cache
+      ansible.builtin.apt:
+        update_cache: true
+      when: ansible_os_family == 'Debian'
+
+    - name: Create molecule cache dir
+      ansible.builtin.file:
+        path: "{{ cache_dir }}"
+        state: directory
+        mode: 0777
+      become: false
+
+    - name: Create KVM keypair
+      ansible.builtin.command:
+        cmd: "ssh-keygen -t rsa -f {{ kvm_keypair }} -q -P '' -C ''"
+        creates: "{{ kvm_keypair }}"
+      become: false
+
+    - name: Create dummy bridge
+      ansible.builtin.command: "ip link add {{ bridge_name }} type bridge"
+      failed_when: false
+
+    - name: Create dummy interface
+      ansible.builtin.command: "ip link add {{ bridge_iface }} type dummy"
+      failed_when: false
+
+    - name: Create dummy bridge slave
+      ansible.builtin.command: "ip link set {{ bridge_iface }} master {{ bridge_name }}"
+      failed_when: false
+
+    - name: Set bridge interface ip address
+      ansible.builtin.command: "ip addr add {{ bridge_host }}/{{ bridge_prefix }} dev {{ bridge_name }}"
+      failed_when: false
+
+    - name: Start bridge interface
+      ansible.builtin.command: "ip link set dev {{ bridge_name }} up"
+      failed_when: false
+
+    - name: Masquerade bridge
+      ansible.builtin.iptables:
+        table: nat
+        chain: POSTROUTING
+        out_interface: "{{ ansible_default_ipv4.interface }}"
+        source: "{{ bridge_net }}"
+        destination: 0.0.0.0/0
+        jump: MASQUERADE
+        protocol: all
+        state: present
+
+    - name: Enable ipv4 forwarding
+      ansible.builtin.sysctl:
+        name: net.ipv4.ip_forward
+        value: '1'
+        state: present
+        reload: True
+
+    - name: Install KVM requirements
+      ansible.builtin.apt:
+        name:
+          - qemu
+          - qemu-kvm
+          - qemu-efi
+          - libvirt-clients
+          - libvirt-daemon-system
+          - libvirt-daemon-system-systemd
+          - python3-libvirt
+      when: ansible_os_family == 'Debian'

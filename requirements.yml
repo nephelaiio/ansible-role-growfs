@@ -1,0 +1,9 @@
+---
+roles:
+  - name: nephelaiio.ubuntu_installer
+  - name: nephelaiio.debian_installer
+  - name: nephelaiio.centos_installer
+  - name: nephelaiio.plugins
+collections:
+  - community.aws
+  - community.general

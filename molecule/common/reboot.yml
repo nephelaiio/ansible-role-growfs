@@ -1,0 +1,44 @@
+---
+- name: Reboot guest
+
+  hosts: guests
+
+  become: true
+
+  pre_tasks:
+
+    - name: Wait for pending tasks to complete
+      ansible.builtin.pause:
+        seconds: 30
+
+    - name: Shut down guest
+      community.general.shutdown:
+
+    - name: Wait for shutdown to complete
+      ansible.builtin.pause:
+        seconds: 30
+
+  tasks:
+
+    - name: Start guests
+      delegate_to: localhost
+      block:
+
+        - name: Force kvm guest poweroff
+          ansible.builtin.command: virsh destroy {{ inventory_hostname }}
+          tags: skip_ansible_lint
+          ignore_errors: true
+          failed_when: false
+          changed_when: false
+
+        - name: Wait for kvm guest poweroff
+          ansible.builtin.pause:
+            minutes: 2
+
+        - name: Start kvm guest
+          ansible.builtin.virt:
+            name: "{{ inventory_hostname }}"
+            state: running
+
+    - name: Wait for connection
+      ansible.builtin.wait_for_connection:

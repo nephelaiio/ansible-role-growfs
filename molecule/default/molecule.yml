@@ -2,46 +2,78 @@
 dependency:
   name: galaxy
   options:
-    role-file: ${MOLECULE_SCENARIO_DIRECTORY}/requirements.yml
-    requirements-file: ${MOLECULE_SCENARIO_DIRECTORY}/requirements.yml
+    role-file: requirements.yml
+    requirements-file: requirements.yml
 driver:
-  name: delegated
+  name: default
   options:
     managed: false
     ansible_connection_options:
       ansible_connection: local
 platforms:
-  - name: instance
+  - name: installer
 provisioner:
   name: ansible
   log: true
+  env:
+    ANSIBLE_VERBOSITY: ${MOLECULE_VERBOSITY:-0}
   config_options:
     defaults:
-      callback_whitelist: profile_tasks
-      host_key_checking: false
+      interpreter_python: auto_silent
+      callbacks_enabled: ansible.posix.profile_tasks
+      callback_whitelist: profile_tasks, timer, yaml
   playbooks:
-    converge: ../converge.yml
-    verify: ../verify.yml
-    prepare: ../prepare.yml
-    cleanup: ../cleanup.yml
-    side_effect: ../reboot.yml
+    prepare: ../common/prepare.yml
+    create: ../common/create.yml
+    converge: ../common/converge.yml
+    verify: ../common/verify.yml
+    cleanup: ../common/cleanup.yml
+    side_effect: ../common/reboot.yml
   inventory:
-    group_vars:
+    hosts:
       all:
-        growfs_device_filter: "vd*"
+        vars:
+          growfs_device_filter: "vd.*"
+          molecule_distro: "{{ lookup('env', 'MOLECULE_DISTRO', default='jammy') }}"
+          molecule_iso: "{{ lookup('env', 'MOLECULE_ISO', default='https://releases.ubuntu.com/jammy/ubuntu-22.04.3-live-server-amd64.iso') }}"
+          molecule_debug: "{{ lookup('env', 'GITHUB_ACTIONS', default='false') | bool }}"
+          cache_dir: "/tmp/{{ molecule_distro }}"
+          output_dir: "{{ lookup('env', 'MOLECULE_OUTPUT_DIR', default='/tmp/logs') }}"
+
+          molecule_net: "{{ lookup('env', 'MOLECULE_NET', default='192.168.255.0/24') }}"
+          bridge_net: "{{ molecule_net | ansible.utils.ipv4('network/prefix') }}"
+          bridge_host: "{{ bridge_net | ansible.utils.nthhost(1) }}"
+          bridge_prefix: "{{ bridge_net | ansible.utils.ipaddr('prefix') }}"
+          bridge_name: "{{ molecule_distro }}br1"
+          bridge_iface: "{{ molecule_distro }}0"
+
+          kvm_keypair: "{{ cache_dir }}/kvm_key"
+          ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+
+          iso_installer:
+            dest: "file://{{ cache_dir }}/server-live.iso"
+            url: "{{ molecule_iso }}"
+
+          guests:
+            - installer_hostname: "{{ molecule_distro }}-lvm-10g"
+              installer_disk_size: "{{ 10*(1024**3) }}"
+              installer_interface:
+                static: true
+                ipaddress: "{{ bridge_net | ansible.utils.nthhost(2) }}"
+                network: "{{ bridge_net | ansible.utils.ipaddr('network') }}"
+                netmask: "{{ bridge_net | ansible.utils.ipaddr('netmask') }}"
+                gateway: "{{ bridge_host }}"
+                nameservers:
+                  - 1.1.1.1
+                  - 8.8.8.8
+              installer_partitioning_method: lvm
+
 verifier:
   name: ansible
 scenario:
   test_sequence:
     - dependency
-    - lint
-    - cleanup
-    - destroy
-    - syntax
-    - create
     - prepare
     - converge
-    - side_effect
     - verify
     - cleanup
-    - destroy
