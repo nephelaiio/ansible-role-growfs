@@ -57,20 +57,27 @@
         state: present
 
     - name: Enable ipv4 forwarding
-      ansible.builtin.sysctl:
+      ansible.posix.sysctl:
         name: net.ipv4.ip_forward
         value: '1'
         state: present
         reload: True
 
-    - name: Install KVM requirements
-      ansible.builtin.apt:
-        name:
-          - qemu
-          - qemu-kvm
-          - qemu-efi
-          - libvirt-clients
-          - libvirt-daemon-system
-          - libvirt-daemon-system-systemd
-          - python3-libvirt
+    - name: Install Debian packages
       when: ansible_os_family == 'Debian'
+      block:
+
+        - name: Install libvirt packages
+          ansible.builtin.apt:
+            name:
+              - libvirt-clients
+              - libvirt-daemon-system
+              - libvirt-daemon-system-systemd
+              - python3-libvirt
+
+        - name: Install qemu packages
+          ansible.builtin.apt:
+            name:
+              - qemu-efi
+              - qemu-system-x86
+              - qemu-utils

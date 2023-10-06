@@ -36,7 +36,7 @@
             minutes: 2
 
         - name: Start kvm guest
-          ansible.builtin.virt:
+          community.libvirt.virt:
             name: "{{ inventory_hostname }}"
             state: running
 

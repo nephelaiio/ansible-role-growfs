@@ -54,7 +54,7 @@
     - name: Gather facts
       ansible.builtin.setup:
 
-    - name: gather partition info
+    - name: Gather partition info
       ansible.builtin.shell:
         cmd: "set -o pipefail && lsblk -l | grep /$"
         executable: /bin/bash
@@ -106,7 +106,7 @@
         - partitioning_method == 'lvm'
         - growfs_lvs_mount is undefined
 
-    - name: check lvs root device size
+    - name: Check lvs root device size
       ansible.builtin.fail:
         msg: "{{ (installer_disk_device | first).size_total }} < {{ installer_disk_threshold }} ({{ disk_size }})"
       vars:
