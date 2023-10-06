@@ -74,6 +74,7 @@ scenario:
   test_sequence:
     - dependency
     - prepare
+    - create
     - converge
     - verify
     - cleanup
