@@ -1,35 +1,6 @@
 ---
-- name: Add guests to inventory
-
-  hosts: localhost
-
-  become: true
-
-  tasks:
-
-    - name: Add guest to inventory
-      ansible.builtin.add_host:
-        name: "{{ guest_hostname }}"
-        groups:
-          - guests
-        ansible_user: molecule
-        ansible_host: "{{ guest_address }}"
-        ansible_port: "{{ guest_port }}"
-        ansible_ssh_private_key_file: "{{ kvm_keypair }}"
-        partitioning_method: "{{ guest.installer_partitioning_method }}"
-        disk_location: "{{ cache_dir }}/{{ guest.installer_hostname }}.img"
-        disk_size: "{{ guest.installer_disk_size }}"
-        disk_index: "{{ disk_index }}"
-      vars:
-        guest_hostname: "{{ guest.installer_hostname }}"
-        bridge_address: "{{ guest.installer_interface.ipaddress }}"
-        guest_address: "{{ bridge_address }}"
-        guest_port: 22
-      loop_control:
-        loop_var: guest
-        index_var: disk_index
-        label: "{{ guest.installer_hostname }}"
-      loop: "{{ guests }}"
+- name: Build dynamic inventory
+  ansible.builtin.import_playbook: inventory.yml
 
 
 - name: Reconfigure guest disks
@@ -60,8 +31,7 @@
 
         - name: Wait for connection
           ansible.builtin.wait_for_connection:
-            timeout: 1800
-          tags: reconfigure
+            timeout: 1200
 
         - name: Shut down guest
           community.general.shutdown:
@@ -139,7 +109,6 @@
     - name: Wait for connection
       ansible.builtin.wait_for_connection:
         timeout: 120
-      tags: reconfigure
 
     - name: Gather facts
       ansible.builtin.setup:

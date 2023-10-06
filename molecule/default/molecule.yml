@@ -76,5 +76,6 @@ scenario:
     - prepare
     - create
     - converge
+    - side_effect
     - verify
     - cleanup

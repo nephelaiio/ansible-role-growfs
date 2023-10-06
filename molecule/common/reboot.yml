@@ -1,4 +1,8 @@
 ---
+- name: Build dynamic inventory
+  ansible.builtin.import_playbook: inventory.yml
+
+
 - name: Reboot guest
 
   hosts: guests
@@ -6,10 +10,6 @@
   become: true
 
   pre_tasks:
-
-    - name: Wait for pending tasks to complete
-      ansible.builtin.pause:
-        seconds: 30
 
     - name: Shut down guest
       community.general.shutdown:
