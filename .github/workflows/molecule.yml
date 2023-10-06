@@ -1,0 +1,53 @@
+---
+name: Molecule
+
+on:
+  pull_request:
+    branches:
+      - master
+  schedule:
+    - cron: "0 3 * * 0"
+
+defaults:
+  run:
+    working-directory: 'nephelaiio.debian_installer'
+
+jobs:
+
+  molecule:
+    name: molecule
+    runs-on: libvirt
+    strategy:
+      matrix:
+        scenario:
+          - name: default
+
+    steps:
+      - name: Check out the codebase.
+        uses: actions/checkout@v3
+        with:
+          path: 'nephelaiio.debian_installer'
+
+      - name: Set up Python 3.
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Update ubuntu repositories
+        run: sudo apt-get update
+
+      - name: Install make
+        run: sudo apt-get install -y make
+
+      - name: Install dependencies
+        run: make install
+
+      - name: Debug test environment
+        run: make debug
+
+      - name: run molecule tests
+        run: make test
+        env:
+          PY_COLORS: '1'
+          ANSIBLE_FORCE_COLOR: '1'
+          MOLECULE_SCENARIO: ${{ matrix.scenario.name }}
