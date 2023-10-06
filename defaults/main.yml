@@ -1,5 +1,5 @@
 ---
-growfs_device_filter: "sd*"
+growfs_device_filter: "sd.*"
 #growfs_model_filter: "*"
 #growfs_vendor_filter: "*"
 growfs_packages_default:

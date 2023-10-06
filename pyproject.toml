@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "nephelaiio-growfs"
+version = "0.1.0"
+description = ""
+authors = ["Ted Cook <teodoro.cook@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+
+[tool.poetry.group.dev.dependencies]
+ansible = "^8.4.0"
+molecule = "^6.0.2"
+molecule-ec2 = "^0.4"
+boto = "^2.49.0"
+boto3 = "^1.28.60"
+netaddr = "^0.9.0"
+yamllint = "^1.32.0"
+ansible-lint = { version = "^6.20.3", markers = "platform_system != 'Windows'" }
+libvirt-python = "^9.8.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

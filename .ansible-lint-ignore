@@ -1,0 +1,12 @@
+# This file contains ignores rule violations for ansible-lint
+meta/main.yml schema[meta]
+molecule/common/cleanup.yml no-changed-when
+molecule/common/converge.yml ignore-errors
+molecule/common/converge.yml no-changed-when
+molecule/common/converge.yml run-once[task]
+molecule/common/create.yml risky-file-permissions
+molecule/common/prepare.yml no-changed-when
+molecule/common/verify.yml no-changed-when
+tasks/lvm.yml jinja[invalid]
+tasks/lvm.yml no-changed-when
+tasks/lvm.yml risky-file-permissions
