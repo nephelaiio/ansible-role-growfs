@@ -90,6 +90,10 @@
             path: "{{ cache_dir }}/{{ inventory_hostname }}.img"
           register: guest_disk_query
 
+        - name: Debug base disk info
+          ansible.builtin.debug:
+            msg: "{{ guest_disk_query.stat }}"
+
         - name: Resize kvm base disks
           ansible.builtin.command: "qemu-img resize -f raw {{ guest_disk }} {{ guest_disk_size }}"
           vars:
