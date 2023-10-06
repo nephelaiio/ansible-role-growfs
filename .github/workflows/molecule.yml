@@ -20,7 +20,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: default
+          - scenario: default
             net: '192.168.255.0/24'
 
     steps:
@@ -51,7 +51,7 @@ jobs:
         env:
           PY_COLORS: '1'
           ANSIBLE_FORCE_COLOR: '1'
-          MOLECULE_SCENARIO: ${{ matrix.scenario.name }}
+          MOLECULE_SCENARIO: ${{ matrix.scenario }}
           MOLECULE_NET: ${{ matrix.net }}
           MOLECULE_OUTPUT_DIR: "/tmp/logs"
 
