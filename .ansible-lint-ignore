@@ -7,6 +7,9 @@ molecule/common/converge.yml run-once[task]
 molecule/common/create.yml risky-file-permissions
 molecule/common/prepare.yml no-changed-when
 molecule/common/verify.yml no-changed-when
-tasks/lvm.yml jinja[invalid]
+molecule/common/verify.yml risky-file-permissions
+molecule/common/verify.yml run-once[task]
 tasks/lvm.yml no-changed-when
 tasks/lvm.yml risky-file-permissions
+tasks/metadata/storage.yml jinja[invalid]
+tasks/static.yml no-changed-when

@@ -27,6 +27,9 @@ dependency create prepare converge idempotence side-effect verify destroy login 
 
 rebuild: destroy prepare create
 
+ignore:
+	poetry run ansible-lint --generate-ignore
+
 clean: destroy reset
 	poetry env remove $$(which python)
 

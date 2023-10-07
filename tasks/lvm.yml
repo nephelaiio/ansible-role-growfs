@@ -25,7 +25,7 @@
   when: growfs_vg_name is not defined
 
 - name: Register storage device metadata
-  import_tasks: metadata/storage.yml
+  ansible.builtin.import_tasks: metadata/storage.yml
 
 - name: Refresh kernel disk info
   ansible.builtin.shell: "echo 1 > /sys/class/block/{{ item }}/device/rescan"
@@ -47,7 +47,7 @@
   when: item.partitions | length == 0
 
 - name: Refresh storage device metadata
-  import_tasks: metadata/storage.yml
+  ansible.builtin.import_tasks: metadata/storage.yml
 
 - name: Resize partitions
   ansible.builtin.command: growpart {{ partition_device }} {{ item.partitions | length }}
