@@ -24,27 +24,8 @@
     _vg_name: "{{ lvm_vgs | map(attribute='vg_name') | first }}"
   when: growfs_vg_name is not defined
 
-- name: Initialize storage device metadata
-  ansible.builtin.set_fact:
-    __growfs_target_devices: []
-
-- name: Filter storage device names
-  ansible.builtin.set_fact:
-    __growfs_target_devices: "{{ __growfs_target_devices + [target_device] }}"
-  vars:
-    target_device: "{{ item.value | combine(target_device_extra) }}"
-    target_device_partitions: "{{ (item.value.partitions | default({})) | dict_to_list('name') | list }}"
-    target_device_extra:
-      name: "{{ item.key }}"
-      used_sectors: "{{ target_device_partitions | selectattr('sectors', 'defined') | map(attribute='sectors') | map('int') | sum }}"
-      partitions: "{{ target_device_partitions }}"
-  loop_control:
-    label: "{{ item.key }}"
-  loop: "{{ ansible_devices | dict2items }}"
-  when:
-    - item.key is search(growfs_device_filter)
-    - ((growfs_model_filter is defined) and ('model' in item.value) and (item.value.model is search(growfs_model_filter))) or (growfs_model_filter is not defined)
-    - ((growfs_vendor_filter is defined) and ('vendor' in item.value) and (item.value.vendor is search(growfs_vendor_filter))) or (growfs_vendor_filter is not defined)
+- name: Register storage device metadata
+  import_tasks: metadata/storage.yml
 
 - name: Refresh kernel disk info
   ansible.builtin.shell: "echo 1 > /sys/class/block/{{ item }}/device/rescan"
@@ -65,32 +46,8 @@
   loop: "{{ __growfs_target_devices | default([]) }}"
   when: item.partitions | length == 0
 
-- name: Refresh partition facts
-  ansible.builtin.setup:
-
 - name: Refresh storage device metadata
-  ansible.builtin.set_fact:
-    __growfs_target_devices: []
-    __growfs_mountpoints: "{{ ansible_mounts | list_to_dict('device', remove_key=False) }}"
-
-- name: Refresh storage devices
-  ansible.builtin.set_fact:
-    __growfs_target_devices: "{{ __growfs_target_devices + [target_device] }}"
-  vars:
-    target_device: "{{ item.value | combine(target_device_extra) }}"
-    target_device_partitions: "{{ (item.value.partitions | default({})) | dict_to_list('name') | list }}"
-    target_device_extra:
-      name: "{{ item.key }}"
-      used_sectors: "{{ target_device_partitions | selectattr('sectors', 'defined') | map(attribute='sectors') | map('int') | sum }}"
-      partitions: "{{ target_device_partitions }}"
-      num_partitions: "{{ target_device_partitions | length }}"
-  loop_control:
-    label: "{{ item.key }}"
-  loop: "{{ ansible_devices | dict2items }}"
-  when:
-    - item.key is search(growfs_device_filter)
-    - ((growfs_model_filter is defined) and ('model' in item.value) and (item.value.model is search(growfs_model_filter))) or (growfs_model_filter is not defined)
-    - ((growfs_vendor_filter is defined) and ('vendor' in item.value) and (item.value.vendor is search(growfs_vendor_filter))) or (growfs_vendor_filter is not defined)
+  import_tasks: metadata/storage.yml
 
 - name: Resize partitions
   ansible.builtin.command: growpart {{ partition_device }} {{ item.partitions | length }}
@@ -162,11 +119,13 @@
     partition_data: "{{ item.1 }}"
     partition_uuids: "{{ partition_data['links']['uuids'] }}"
     partition_device: "/dev/{{ partition_data.name }}"
+    num_partitions_attr: num_partitions
   loop_control:
     label: "{{ partition_device }}"
   loop: "{{ q('subelements', __growfs_target_devices, 'partitions') }}"
   when:
-    - (partition_disk.num_partitions | int) == 1
+    - num_partitions_attr in partition_disk
+    - (partition_disk[num_partitions_attr] | int) == 1
     - partition_device not in __growfs_mountpoints
     - partition_device not in (vg_assigned_pvs.values() | flatten(levels=1))
     - partition_uuids | intersect(mount_uuids) | length == 0

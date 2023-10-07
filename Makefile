@@ -10,7 +10,7 @@ GITHUB_REPO = $$(echo ${GITHUB_REPOSITORY} | cut -d/ -f 2)
 all: install version lint test
 
 test: lint
-	poetry run molecule test -s ${MOLECULE_SCENARIO}
+	poetry run molecule $@ -s ${MOLECULE_SCENARIO}
 
 install:
 	@type poetry >/dev/null || pip3 install poetry
@@ -23,7 +23,9 @@ lint: install
 	poetry run molecule syntax
 
 dependency create prepare converge idempotence side-effect verify destroy login reset:
-	MOLECULE_DOCKER_IMAGE=${MOLECULE_DOCKER_IMAGE} poetry run molecule $@ -s ${MOLECULE_SCENARIO}
+	poetry run molecule $@ -s ${MOLECULE_SCENARIO}
+
+rebuild: destroy prepare create
 
 clean: destroy reset
 	poetry env remove $$(which python)

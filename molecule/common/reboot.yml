@@ -25,7 +25,7 @@
       block:
 
         - name: Force kvm guest poweroff
-          ansible.builtin.command: virsh destroy {{ inventory_hostname }}
+          ansible.builtin.shell: "virsh destroy {{ inventory_hostname }} >/dev/null 2>&1"
           tags: skip_ansible_lint
           ignore_errors: true
           failed_when: false

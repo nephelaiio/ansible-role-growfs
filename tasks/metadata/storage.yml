@@ -1,0 +1,26 @@
+---
+- name: Refresh partition facts
+  ansible.builtin.setup:
+
+- name: Initialize storage device metadata
+  ansible.builtin.set_fact:
+    __growfs_target_devices: []
+    __growfs_mountpoints: "{{ ansible_mounts | list_to_dict('device', remove_key=False) }}"
+
+- name: Filter storage device names
+  ansible.builtin.set_fact:
+    __growfs_target_devices: "{{ __growfs_target_devices + [target_device] }}"
+  vars:
+    target_device: "{{ item.value | combine(target_device_extra) }}"
+    target_device_partitions: "{{ (item.value.partitions | default({})) | dict_to_list('name') | list }}"
+    target_device_extra:
+      name: "{{ item.key }}"
+      used_sectors: "{{ target_device_partitions | selectattr('sectors', 'defined') | map(attribute='sectors') | map('int') | sum }}"
+      partitions: "{{ target_device_partitions }}"
+  loop_control:
+    label: "{{ item.key }}"
+  loop: "{{ ansible_devices | dict2items }}"
+  when:
+    - item.key is search(growfs_device_filter)
+    - ((growfs_model_filter is defined) and ('model' in item.value) and (item.value.model is search(growfs_model_filter))) or (growfs_model_filter is not defined)
+    - ((growfs_vendor_filter is defined) and ('vendor' in item.value) and (item.value.vendor is search(growfs_vendor_filter))) or (growfs_vendor_filter is not defined)
