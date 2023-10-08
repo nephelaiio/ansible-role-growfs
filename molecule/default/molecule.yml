@@ -68,13 +68,26 @@ provisioner:
                   - 8.8.8.8
               installer_partitioning_method: lvm
 
+            - installer_hostname: "{{ molecule_distro }}-static-10g"
+              installer_disk_size: "{{ 10*(1024**3) }}"
+              installer_interface:
+                static: true
+                ipaddress: "{{ bridge_net | ansible.utils.nthhost(3) }}"
+                network: "{{ bridge_net | ansible.utils.ipaddr('network') }}"
+                netmask: "{{ bridge_net | ansible.utils.ipaddr('netmask') }}"
+                gateway: "{{ bridge_host }}"
+                nameservers:
+                  - 1.1.1.1
+                  - 8.8.8.8
+              installer_partitioning_method: regular
+
 verifier:
   name: ansible
 scenario:
   test_sequence:
     - dependency
-    - prepare
     - create
+    - prepare
     - converge
     - side_effect
     - verify

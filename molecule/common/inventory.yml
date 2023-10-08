@@ -1,10 +1,7 @@
 ---
 - name: Add guests to inventory
-
   hosts: localhost
-
   become: true
-
   tasks:
 
     - name: Add guest to inventory

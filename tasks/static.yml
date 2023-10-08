@@ -1,4 +1,49 @@
 ---
-- name: Fail for static partitioned hosts
-  ansible.builtin.fail:
-    msg: "unsupported partitioning scheme"
+- name: Register storage device metadata
+  ansible.builtin.import_tasks: metadata/storage.yml
+
+- name: Resize partitions
+  ansible.builtin.command: growpart {{ partition_device }} {{ item.partitions | length }}
+  vars:
+    partition_begin: "{{ item.partitions | map(attribute='start') | map('int') | max | string }}"
+    partition_target: "{{ item.partitions | selectattr('start', 'equalto', partition_begin) | list | first }}"
+    partition_device: "/dev/{{ item.name }}"
+  loop_control:
+    label: "{{ partition_target.name }}"
+  loop: "{{ __growfs_target_devices }}"
+  when: (item.used_sectors | int) < ((item.sectors | int) * (growfs_resize_threshold | int)/100)
+
+- name: Resize filesystems (ansible < 2.10)
+  community.general.filesystem:
+    dev: "{{ partition_device }}"
+    fstype: "{{ __growfs_mountpoints[partition_device].fstype }}"
+    resizefs: true
+    force: false
+  vars:
+    partition_begin: "{{ item.partitions | map(attribute='start') | map('int') | max | string }}"
+    partition_target: "{{ item.partitions | selectattr('start', 'equalto', partition_begin) | list | first }}"
+    partition_device: "/dev/{{ partition_target.name }}"
+  loop_control:
+    label: "{{ partition_device }}"
+  loop: "{{ __growfs_target_devices }}"
+  when:
+    - partition_device in __growfs_mountpoints
+    - ansible_version.full is version('2.10.0', '<')
+
+- name: Resize filesystems (ansible >= 2.10)
+  community.general.filesystem:
+    dev: "{{ partition_device }}"
+    fstype: "{{ __growfs_mountpoints[partition_device].fstype }}"
+    resizefs: true
+    state: present
+    force: false
+  vars:
+    partition_begin: "{{ item.partitions | map(attribute='start') | map('int') | max | string }}"
+    partition_target: "{{ item.partitions | selectattr('start', 'equalto', partition_begin) | list | first }}"
+    partition_device: "/dev/{{ partition_target.name }}"
+  loop_control:
+    label: "{{ partition_device }}"
+  loop: "{{ __growfs_target_devices }}"
+  when:
+    - partition_device in __growfs_mountpoints
+    - ansible_version.full is version('2.10.0', '>=')
