@@ -73,7 +73,7 @@
         loop_var: guest
         label: "{{ guest.installer_hostname }}"
       loop: "{{ guest_info }}"
-      when: molecule_scenario == "ubuntu"
+      when: molecule_scenario == "debian"
 
     - name: Create KVM guest disks
       ansible.builtin.command: "qemu-img create {{ guest_disk }} {{ guest_disk_size }}"
