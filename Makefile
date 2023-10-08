@@ -25,8 +25,6 @@ lint: install
 dependency create prepare converge idempotence side-effect verify destroy login reset:
 	poetry run molecule $@ -s ${MOLECULE_SCENARIO}
 
-rebuild: destroy prepare create
-
 ignore:
 	poetry run ansible-lint --generate-ignore
 

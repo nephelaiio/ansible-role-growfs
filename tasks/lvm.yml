@@ -119,16 +119,20 @@
     partition_data: "{{ item.1 }}"
     partition_uuids: "{{ partition_data['links']['uuids'] }}"
     partition_device: "/dev/{{ partition_data.name }}"
-    num_partitions_attr: num_partitions
+    device_dict: "{{ __growfs_target_devices | list_to_dict('name') }}"
+    device_data: "{{ device_dict[partition_disk.name] }}"
   loop_control:
     label: "{{ partition_device }}"
   loop: "{{ q('subelements', __growfs_target_devices, 'partitions') }}"
   when:
-    - num_partitions_attr in partition_disk
-    - (partition_disk[num_partitions_attr] | int) == 1
+    - device_data.partitions | length | int == 1
     - partition_device not in __growfs_mountpoints
     - partition_device not in (vg_assigned_pvs.values() | flatten(levels=1))
     - partition_uuids | intersect(mount_uuids) | length == 0
+
+- name: Debug unassigned pvs
+  ansible.builtin.debug:
+    var: vg_unassigned_pvs
 
 - name: Resize pvs
   ansible.builtin.command: "pvresize {{ item.pv_name }}"

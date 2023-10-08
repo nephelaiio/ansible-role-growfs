@@ -4,11 +4,8 @@
 
 
 - name: Verify guests
-
   hosts: guests
-
   gather_facts: false
-
   tasks:
 
     - name: Debug connection parameters

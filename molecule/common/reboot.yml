@@ -4,11 +4,8 @@
 
 
 - name: Reboot guest
-
   hosts: guests
-
   become: true
-
   pre_tasks:
 
     - name: Shut down guest
@@ -19,7 +16,6 @@
         seconds: 30
 
   tasks:
-
     - name: Start guests
       delegate_to: localhost
       block:

@@ -1,10 +1,7 @@
 ---
 - name: Destroy KVM guests
-
   hosts: localhost
-
   become: true
-
   tasks:
 
     - name: Destroy KVM guest
@@ -33,6 +30,17 @@
         state: absent
       vars:
         guest_disk: "{{ cache_dir }}/{{ guest.installer_hostname }}.img"
+      loop_control:
+        loop_var: guest
+        label: "{{ guest.installer_hostname }}"
+      loop: "{{ guests }}"
+
+    - name: Destroy KVM extra disks
+      ansible.builtin.file:
+        path: "{{ guest_disk }}"
+        state: absent
+      vars:
+        guest_disk: "{{ cache_dir }}/{{ guest.installer_hostname }}.add.img"
       loop_control:
         loop_var: guest
         label: "{{ guest.installer_hostname }}"
