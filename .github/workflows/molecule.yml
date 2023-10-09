@@ -24,7 +24,7 @@ jobs:
             net: '192.168.255.0/24'
             release: jammy
           - scenario: debian
-            net: '192.168.255.0/24'
+            net: '192.168.254.0/24'
             release: bullseye
 
     steps:
