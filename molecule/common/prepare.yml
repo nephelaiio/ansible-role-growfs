@@ -9,103 +9,135 @@
   become: true
   pre_tasks:
 
-    - name: Query KVM guest info
-      community.libvirt.virt:
-        command: info
-      register: libvirt_info
-      delegate_to: localhost
-      run_once: true
-
-    - name: Shut down guest
-      when:
-        - inventory_hostname in libvirt_info
-        - libvirt_info[inventory_hostname].state == "running"
+    - name: Recofigure guest storage
       block:
+
+        - name: Query KVM guest info
+          community.libvirt.virt:
+            command: info
+          register: libvirt_info
+          delegate_to: localhost
+          run_once: true
+
+        - name: Shut down guest
+          when:
+            - inventory_hostname in libvirt_info
+            - libvirt_info[inventory_hostname].state == "running"
+          block:
+
+            - name: Wait for connection
+              ansible.builtin.wait_for_connection:
+                timeout: 1200
+
+            - name: Shut down guest
+              community.general.shutdown:
+
+            - name: Wait for shutdown to complete
+              ansible.builtin.pause:
+                seconds: 30
+
+            - name: Force kvm guest poweroff
+              ansible.builtin.shell: "virsh destroy {{ inventory_hostname }} >/dev/null 2>&1"
+              ignore_errors: true
+              failed_when: false
+              changed_when: false
+              delegate_to: localhost
+
+            - name: Wait for poweroff to complete
+              ansible.builtin.pause:
+                seconds: 30
+
+        - name: Reconfigure guest disks
+          delegate_to: localhost
+          block:
+
+            - name: Stat kvm base disk
+              ansible.builtin.stat:
+                path: "{{ cache_dir }}/{{ inventory_hostname }}.img"
+              register: guest_disk_query
+
+            - name: Debug base disk info
+              ansible.builtin.debug:
+                msg: "{{ guest_disk_query.stat }}"
+
+            - name: Resize kvm base disks
+              ansible.builtin.command: "qemu-img resize -f raw {{ guest_disk }} {{ guest_disk_size }}"
+              vars:
+                guest_disk: "{{ cache_dir }}/{{ inventory_hostname }}.img"
+                guest_disk_size: "{{ 2 * (disk_size | int) }}"
+              when: (guest_disk_size | int) > (guest_disk_query.stat.size | int)
+
+            - name: Stat additional kvm disk
+              ansible.builtin.stat:
+                path: "{{ cache_dir }}/{{ inventory_hostname }}.add.img"
+              register: guest_addisk_query
+
+            - name: Create additional kvm disk for lvm instances
+              ansible.builtin.command: "qemu-img create -f raw {{ guest_disk }} {{ guest_disk_size }}"
+              args:
+                creates: "{{ guest_disk }}"
+              vars:
+                guest_disk: "{{ cache_dir }}/{{ inventory_hostname }}.add.img"
+                guest_disk_size: "{{ 2 * (disk_size | int) }}"
+              when:
+                - not guest_addisk_query.stat.exists
+                - partitioning_method == 'lvm'
+              notify: attach kvm guest disk
+
+            - name: Manage permissions for extra kvm guest disk
+              ansible.builtin.file:
+                path: "{{ guest_disk }}"
+                owner: libvirt-qemu
+                group: kvm
+                mode: 0660
+              vars:
+                guest_disk: "{{ cache_dir }}/{{ inventory_hostname }}.add.img"
+              when: partitioning_method == 'lvm'
+
+            - name: Flush handlers
+              ansible.builtin.meta: flush_handlers
+
+            - name: Start kvm guest
+              community.libvirt.virt:
+                name: "{{ inventory_hostname }}"
+                state: running
 
         - name: Wait for connection
           ansible.builtin.wait_for_connection:
-            timeout: 1200
+            timeout: 120
 
-        - name: Shut down guest
-          community.general.shutdown:
+        - name: Gather facts
+          ansible.builtin.setup:
+          tags: always
 
-        - name: Wait for shutdown to complete
-          ansible.builtin.pause:
-            seconds: 30
+      always:
 
-        - name: Force kvm guest poweroff
-          ansible.builtin.shell: "virsh destroy {{ inventory_hostname }} >/dev/null 2>&1"
-          ignore_errors: true
-          failed_when: false
-          changed_when: false
-          delegate_to: localhost
-
-        - name: Wait for poweroff to complete
-          ansible.builtin.pause:
-            seconds: 30
-
-    - name: Reconfigure guest disks
-      delegate_to: localhost
-      block:
-
-        - name: Stat kvm base disk
-          ansible.builtin.stat:
-            path: "{{ cache_dir }}/{{ inventory_hostname }}.img"
-          register: guest_disk_query
-
-        - name: Debug base disk info
-          ansible.builtin.debug:
-            msg: "{{ guest_disk_query.stat }}"
-
-        - name: Resize kvm base disks
-          ansible.builtin.command: "qemu-img resize -f raw {{ guest_disk }} {{ guest_disk_size }}"
+        - name: Set debug facts
+          ansible.builtin.set_fact:
+            debug_disk: "{{ disk_location }}.debug"
+            debug_hostdir: "{{ _hostdir }}"
+            debug_logfile: "{{ _logfile }}"
+            debug_crashdir: "{{ _crashdir }}"
+            debug_output_dir: "{{ output_dir }}"
+            debug_output_curtin: "{{ output_dir }}/{{ inventory_hostname }}.curtin.log"
+            debug_output_screenshot: "{{ output_dir }}/{{ inventory_hostname }}.png"
           vars:
-            guest_disk: "{{ cache_dir }}/{{ inventory_hostname }}.img"
-            guest_disk_size: "{{ 2 * (disk_size | int) }}"
-          when: (guest_disk_size | int) > (guest_disk_query.stat.size | int)
+            _hostdir: "{{ cache_dir }}/{{ inventory_hostname }}"
+            _logfile: "{{ _hostdir }}/var/log/installer/curtin-install.log"
+            _crashdir: "{{ _hostdir }}/var/crash/"
 
-        - name: Stat additional kvm disk
-          ansible.builtin.stat:
-            path: "{{ cache_dir }}/{{ inventory_hostname }}.add.img"
-          register: guest_addisk_query
-
-        - name: Create additional kvm disk for lvm instances
-          ansible.builtin.command: "qemu-img create -f raw {{ guest_disk }} {{ guest_disk_size }}"
-          args:
-            creates: "{{ guest_disk }}"
-          vars:
-            guest_disk: "{{ cache_dir }}/{{ inventory_hostname }}.add.img"
-            guest_disk_size: "{{ 2 * (disk_size | int) }}"
-          when:
-            - not guest_addisk_query.stat.exists
-            - partitioning_method == 'lvm'
-          notify: attach kvm guest disk
-
-        - name: Manage permissions for extra kvm guest disk
+        - name: Create output directory
           ansible.builtin.file:
-            path: "{{ guest_disk }}"
-            owner: libvirt-qemu
-            group: kvm
-            mode: 0660
-          vars:
-            guest_disk: "{{ cache_dir }}/{{ inventory_hostname }}.add.img"
-          when: partitioning_method == 'lvm'
+            state: directory
+            path: "{{ debug_output_dir }}"
+          delegate_to: localhost
+          run_once: true
 
-        - name: Flush handlers
-          ansible.builtin.meta: flush_handlers
-
-        - name: Start kvm guest
-          community.libvirt.virt:
-            name: "{{ inventory_hostname }}"
-            state: running
-
-    - name: Wait for connection
-      ansible.builtin.wait_for_connection:
-        timeout: 120
-
-    - name: Gather facts
-      ansible.builtin.setup:
-      tags: always
+        - name: Take guest screenshot
+          ansible.builtin.command: "virsh screenshot {{ inventory_hostname }} {{ debug_output_screenshot }}"
+          delegate_to: localhost
+          when: molecule_debug
+          become: true
 
   handlers:
 
