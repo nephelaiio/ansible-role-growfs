@@ -21,10 +21,8 @@ jobs:
       matrix:
         include:
           - scenario: ubuntu
-            net: '192.168.255.0/24'
             release: jammy
           - scenario: debian
-            net: '192.168.254.0/24'
             release: bullseye
 
     steps:
@@ -56,7 +54,6 @@ jobs:
           PY_COLORS: '1'
           ANSIBLE_FORCE_COLOR: '1'
           MOLECULE_SCENARIO: ${{ matrix.scenario }}
-          MOLECULE_NET: ${{ matrix.net }}
           MOLECULE_DISTRO: "${{ matrix.release }}"
           MOLECULE_OUTPUT_DIR: "/tmp/logs"
 
