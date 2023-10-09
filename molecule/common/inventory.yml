@@ -17,7 +17,6 @@
         disk_location: "{{ cache_dir }}/{{ guest.installer_hostname }}.img"
         disk_size: "{{ guest.installer_disk_size }}"
         disk_index: "{{ disk_index }}"
-        disk_resize: "{{ guest.installer_disk_resize | default('true') }}"
       vars:
         guest_hostname: "{{ guest.installer_hostname }}"
         bridge_address: "{{ guest.installer_interface.ipaddress }}"
