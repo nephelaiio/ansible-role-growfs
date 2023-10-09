@@ -62,7 +62,9 @@
           vars:
             guest_disk: "{{ cache_dir }}/{{ inventory_hostname }}.img"
             guest_disk_size: "{{ 2 * (disk_size | int) }}"
-          when: (guest_disk_size | int) > (guest_disk_query.stat.size | int)
+          when:
+            - disk_resize | default('true') | bool
+            - (guest_disk_size | int) > (guest_disk_query.stat.size | int)
 
         - name: Stat additional kvm disk
           ansible.builtin.stat:

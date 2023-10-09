@@ -41,7 +41,7 @@ provisioner:
           cache_dir: "/tmp/{{ molecule_distro }}"
           output_dir: "{{ lookup('env', 'MOLECULE_OUTPUT_DIR', default='/tmp/logs') }}"
 
-          molecule_net: "{{ lookup('env', 'MOLECULE_NET', default='192.168.255.0/24') }}"
+          molecule_net: "{{ lookup('env', 'MOLECULE_NET', default='192.168.254.0/24') }}"
           bridge_net: "{{ molecule_net | ansible.utils.ipv4('network/prefix') }}"
           bridge_host: "{{ bridge_net | ansible.utils.nthhost(1) }}"
           bridge_prefix: "{{ bridge_net | ansible.utils.ipaddr('prefix') }}"
@@ -68,6 +68,7 @@ provisioner:
                   - 1.1.1.1
                   - 8.8.8.8
               installer_partitioning_method: lvm
+              installer_disk_resize: false
 
             - installer_hostname: "{{ molecule_distro }}-static-10g"
               installer_disk_size: "{{ 10*(1024**3) }}"
@@ -81,6 +82,16 @@ provisioner:
                   - 1.1.1.1
                   - 8.8.8.8
               installer_partitioning_method: regular
+              installer_preseed_include: |
+                d-i partman-auto/expert_recipe string \
+                  boot-root :: \
+                    1024 100000000000 -1 ext4 \
+                            $primary{ } \
+                            method{ format } format{ } \
+                            use_filesystem{ } filesystem{ ext4 } \
+                            mountpoint{ / } \
+                    .
+                d-i partman-basicfilesystems/no_swap boolean false⇧
 
 verifier:
   name: ansible
