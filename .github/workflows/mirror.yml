@@ -16,6 +16,11 @@ jobs:
     name: Mirror
     runs-on: ubuntu-latest
     steps:
+      - name: Check out the codebase.
+        uses: actions/checkout@v2
+        with:
+          path: 'nephelaiio.growfs'
+
       - name: Test debian mirror access (http)
         run: curl http://debian-archive.trafficmanager.net/debian
 
