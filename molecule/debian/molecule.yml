@@ -51,9 +51,6 @@ provisioner:
           kvm_keypair: "{{ cache_dir }}/kvm_key"
           ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
 
-          debian_installer_mirror: 'debian-archive.trafficmanager.net'
-          debian_installer_security_mirror: 'debian-archive.trafficmanager.net'
-
           iso_installer:
             dest: "file://{{ cache_dir }}/{{ molecule_distro }}.iso"
             url: "{{ molecule_iso }}"

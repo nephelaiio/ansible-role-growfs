@@ -60,11 +60,11 @@ jobs:
       - name: Install dependencies
         run: make install
 
-      - name: Debug test environment
-        run: make debug
-
       - name: Disable firewall
         run: sudo ufw disable
+
+      - name: Debug test environment
+        run: make debug
 
       - name: run molecule tests
         run: make test
