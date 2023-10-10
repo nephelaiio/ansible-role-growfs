@@ -35,7 +35,7 @@
         url: "{{ iso_installer.url }}"
         dest: "{{ iso_installer.dest | urlsplit('path') }}"
 
-    - name: Build guest installer isos
+    - name: Build ubuntu installer isos
       ansible.builtin.include_role:
         name: nephelaiio.ubuntu_installer
       vars:
@@ -53,6 +53,28 @@
         loop_var: guest
         label: "{{ guest.installer_hostname }}"
       loop: "{{ guest_info }}"
+      when: molecule_scenario == "ubuntu"
+
+    - name: Build debian installer isos
+      ansible.builtin.include_role:
+        name: nephelaiio.debian_installer
+      vars:
+        debian_installer_interface_name: enp1s0
+        debian_installer_target_dir: "{{ cache_dir }}"
+        debian_installer_image_url: "{{ iso_installer.dest }}"
+        debian_installer_hostname: "{{ guest.installer_hostname }}"
+        debian_installer_username: molecule
+        debian_installer_password: "{{ 'molecule' | password_hash('sha512') }}"
+        debian_installer_sshkey:
+          - "{{ lookup('file', kvm_keypair + '.pub') }}"
+        debian_installer_interface: "{{ guest.installer_interface }}"
+        debian_installer_partman_method: "{{ guest.installer_partitioning_method }}"
+        debian_installer_preseed_include: "{{ guest.installer_preseed_include | default('') }}"
+      loop_control:
+        loop_var: guest
+        label: "{{ guest.installer_hostname }}"
+      loop: "{{ guest_info }}"
+      when: molecule_scenario == "debian"
 
     - name: Create KVM guest disks
       ansible.builtin.command: "qemu-img create {{ guest_disk }} {{ guest_disk_size }}"

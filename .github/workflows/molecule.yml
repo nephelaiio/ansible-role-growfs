@@ -14,14 +14,31 @@ defaults:
 
 jobs:
 
+  mirror:
+    name: mirror
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the codebase.
+        uses: actions/checkout@v2
+        with:
+          path: 'nephelaiio.growfs'
+
+      - name: Test debian mirror access (http)
+        run: curl -sD- http://debian-archive.trafficmanager.net/debian/
+
+      - name: Test debian security mirror access (http)
+        run: curl -sD- http://debian-archive.trafficmanager.net/debian-security/
+
   molecule:
     name: molecule
     runs-on: libvirt
     strategy:
       matrix:
         include:
-          - scenario: default
-            net: '192.168.255.0/24'
+          - scenario: ubuntu
+            release: jammy
+          - scenario: debian
+            release: bullseye
 
     steps:
       - name: Check out the codebase.
@@ -43,6 +60,9 @@ jobs:
       - name: Install dependencies
         run: make install
 
+      - name: Disable firewall
+        run: sudo ufw disable
+
       - name: Debug test environment
         run: make debug
 
@@ -52,7 +72,7 @@ jobs:
           PY_COLORS: '1'
           ANSIBLE_FORCE_COLOR: '1'
           MOLECULE_SCENARIO: ${{ matrix.scenario }}
-          MOLECULE_NET: ${{ matrix.net }}
+          MOLECULE_DISTRO: "${{ matrix.release }}"
           MOLECULE_OUTPUT_DIR: "/tmp/logs"
 
       - name: Upload install logs
