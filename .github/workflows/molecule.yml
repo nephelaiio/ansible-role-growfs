@@ -15,7 +15,7 @@ defaults:
 jobs:
 
   mirror:
-    name: Mirror
+    name: mirror
     runs-on: ubuntu-latest
     steps:
       - name: Check out the codebase.
