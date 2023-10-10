@@ -63,6 +63,9 @@ jobs:
       - name: Debug test environment
         run: make debug
 
+      - name: Disable firewall
+        run: sudo ufw disable
+
       - name: run molecule tests
         run: make test
         env:
