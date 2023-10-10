@@ -1,9 +1,10 @@
 ---
 name: Mirror
+
 on:
-  push:
-    tags:
-      - "*"
+  pull_request:
+    branches:
+      - master
 
 defaults:
   run:
