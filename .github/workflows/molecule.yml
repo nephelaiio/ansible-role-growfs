@@ -14,6 +14,21 @@ defaults:
 
 jobs:
 
+  mirror:
+    name: Mirror
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the codebase.
+        uses: actions/checkout@v2
+        with:
+          path: 'nephelaiio.growfs'
+
+      - name: Test debian mirror access (http)
+        run: curl -sD- http://debian-archive.trafficmanager.net/debian/
+
+      - name: Test debian security mirror access (http)
+        run: curl -sD- http://debian-archive.trafficmanager.net/debian-security/
+
   molecule:
     name: molecule
     runs-on: libvirt
