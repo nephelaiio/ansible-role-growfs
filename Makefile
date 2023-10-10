@@ -41,5 +41,5 @@ version:
 	@poetry run molecule --version
 
 debug: version
+	sudo ufw status
 	@poetry export --dev --without-hashes
-	@sudo ufw status
