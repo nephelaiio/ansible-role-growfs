@@ -35,13 +35,13 @@ provisioner:
         vars:
           growfs_device_filter: "vd.*"
           molecule_scenario: "${MOLECULE_SCENARIO}"
-          molecule_distro: "{{ lookup('env', 'MOLECULE_DISTRO', default='bullseye') }}"
-          molecule_iso: "{{ lookup('env', 'MOLECULE_ISO', default='https://cdimage.debian.org/mirror/cdimage/archive/11.8.0/amd64/iso-dvd/debian-11.8.0-amd64-DVD-1.iso') }}"
+          molecule_distro: "{{ lookup('env', 'MOLECULE_DISTRO', default='7') }}"
+          molecule_iso: "{{ lookup('env', 'MOLECULE_ISO', default='http://mirrors.ucr.ac.cr/centos/7.9.2009/isos/x86_64/CentOS-7-x86_64-Minimal-2009.iso') }}"
           molecule_debug: "{{ lookup('env', 'GITHUB_ACTIONS', default='false') | bool }}"
           cache_dir: "/tmp/{{ molecule_distro }}"
           output_dir: "{{ lookup('env', 'MOLECULE_OUTPUT_DIR', default='/tmp/logs') }}"
 
-          molecule_net: "{{ lookup('env', 'MOLECULE_NET', default='192.168.254.0/24') }}"
+          molecule_net: "{{ lookup('env', 'MOLECULE_NET', default='192.168.253.0/24') }}"
           bridge_net: "{{ molecule_net | ansible.utils.ipv4('network/prefix') }}"
           bridge_host: "{{ bridge_net | ansible.utils.nthhost(1) }}"
           bridge_prefix: "{{ bridge_net | ansible.utils.ipaddr('prefix') }}"
@@ -56,7 +56,7 @@ provisioner:
             url: "{{ molecule_iso }}"
 
           guests:
-            - installer_hostname: "{{ molecule_distro }}-lvm-10g"
+            - installer_hostname: "{{ molecule_distro }}-autopart-10g"
               installer_disk_size: "{{ 10*(1024**3) }}"
               installer_interface:
                 static: true
@@ -67,7 +67,8 @@ provisioner:
                 nameservers:
                   - 1.1.1.1
                   - 8.8.8.8
-              installer_partitioning_method: lvm
+              installer_ks_partitioning: autopart
+              installer_partitioning_method: autopart
 
             - installer_hostname: "{{ molecule_distro }}-static-10g"
               installer_disk_size: "{{ 10*(1024**3) }}"
@@ -80,7 +81,11 @@ provisioner:
                 nameservers:
                   - 1.1.1.1
                   - 8.8.8.8
-              installer_partitioning_method: regular
+              installer_partitioning_method: static
+              installer_ks_partitioning: |
+                part /boot --fstype ext4 --size=2048
+                part swap --asprimary --size=1024
+                part / --type plain --fstype ext4 --size=1 --grow
 
 verifier:
   name: ansible

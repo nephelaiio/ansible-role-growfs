@@ -34,7 +34,7 @@ provisioner:
       all:
         vars:
           growfs_device_filter: "vd.*"
-          molecule_scenario: "${MOLECULE_SCENARIO_NAME}"
+          molecule_scenario: "${MOLECULE_SCENARIO}"
           molecule_distro: "{{ lookup('env', 'MOLECULE_DISTRO', default='jammy') }}"
           molecule_iso: "{{ lookup('env', 'MOLECULE_ISO', default='https://releases.ubuntu.com/jammy/ubuntu-22.04.3-live-server-amd64.iso') }}"
           molecule_debug: "{{ lookup('env', 'GITHUB_ACTIONS', default='false') | bool }}"
