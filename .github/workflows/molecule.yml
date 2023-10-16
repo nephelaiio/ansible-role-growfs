@@ -39,6 +39,8 @@ jobs:
             release: jammy
           - scenario: debian
             release: bullseye
+          - scenario: centos
+            release: 7
 
     steps:
       - name: Check out the codebase.
