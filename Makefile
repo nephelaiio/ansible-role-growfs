@@ -39,7 +39,7 @@ ignore:
 	poetry run ansible-lint --generate-ignore
 
 clean: destroy reset
-	poetry env remove $$(which python)
+	@poetry env remove $$(which python) >/dev/null 2>&1 || exit 0
 
 publish:
 	@echo publishing repository ${GITHUB_REPOSITORY}
