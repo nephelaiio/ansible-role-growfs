@@ -59,6 +59,7 @@
     label: "{{ partition_target.name }}"
   loop: "{{ __growfs_target_devices }}"
   when: (item.used_sectors | int) < ((item.sectors | int) * (growfs_resize_threshold | int)/100)
+  tags: skip_ansible_lint
 
 - name: Resize filesystems (ansible < 2.10)
   community.general.filesystem:
@@ -119,7 +120,7 @@
     partition_data: "{{ item.1 }}"
     partition_uuids: "{{ partition_data['links']['uuids'] }}"
     partition_device: "/dev/{{ partition_data.name }}"
-    device_dict: "{{ __growfs_target_devices | list_to_dict('name') }}"
+    device_dict: "{{ __growfs_target_devices | nephelaiio.plugins.list_to_dict('name') }}"
     device_data: "{{ device_dict[partition_disk.name] }}"
   loop_control:
     label: "{{ partition_device }}"
@@ -155,7 +156,6 @@
 - name: Select lvs target
   when: growfs_lvs_name is undefined
   block:
-
     - name: Ensure target lvs is unambiguous
       ansible.builtin.fail:
         msg: "multiple logical volumes present ({{ __growfs_target_lvs.join(', ') }}) and growfs_lvs_name is unset"
@@ -174,7 +174,6 @@
 - name: Extend logical volume
   when: growfs_lvs_name != ''
   block:
-
     - name: Manage logical volume
       community.general.lvol:
         vg: "{{ _vg_name }}"
@@ -198,11 +197,11 @@
     - name: Manage volume mount
       when: growfs_lvs_mount is defined
       block:
-
         - name: Manage mount directory
           ansible.builtin.file:
             path: "{{ growfs_lvs_mount }}"
             state: directory
+            mode: 0755
 
         - name: Manage lvs mount
           ansible.posix.mount:

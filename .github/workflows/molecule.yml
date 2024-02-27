@@ -39,6 +39,8 @@ jobs:
             release: jammy
           - scenario: debian
             release: bullseye
+          - scenario: debian
+            release: bookworm
 
     steps:
       - name: Check out the codebase.

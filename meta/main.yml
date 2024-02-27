@@ -20,5 +20,4 @@ galaxy_info:
         - stretch
   galaxy_tags: ['growfs']
 
-dependencies:
-  - nephelaiio.plugins
+dependencies: []

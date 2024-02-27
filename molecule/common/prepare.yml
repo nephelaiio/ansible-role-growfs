@@ -8,10 +8,8 @@
   gather_facts: false
   become: true
   pre_tasks:
-
     - name: Recofigure guest storage
       block:
-
         - name: Query KVM guest info
           community.libvirt.virt:
             command: info
@@ -24,7 +22,6 @@
             - inventory_hostname in libvirt_info
             - libvirt_info[inventory_hostname].state == "running"
           block:
-
             - name: Wait for connection
               ansible.builtin.wait_for_connection:
                 timeout: 1200
@@ -50,10 +47,9 @@
         - name: Reconfigure guest disks
           delegate_to: localhost
           block:
-
             - name: Stat kvm base disk
               ansible.builtin.stat:
-                path: "{{ cache_dir }}/{{ inventory_hostname }}.img"
+                path: "{{ molecule_libvirt_path }}/{{ inventory_hostname }}.img"
               register: guest_disk_query
 
             - name: Debug base disk info
@@ -63,13 +59,13 @@
             - name: Resize kvm base disks
               ansible.builtin.command: "qemu-img resize -f raw {{ guest_disk }} {{ guest_disk_size }}"
               vars:
-                guest_disk: "{{ cache_dir }}/{{ inventory_hostname }}.img"
+                guest_disk: "{{ molecule_libvirt_path }}/{{ inventory_hostname }}.img"
                 guest_disk_size: "{{ 2 * (disk_size | int) }}"
               when: (guest_disk_size | int) > (guest_disk_query.stat.size | int)
 
             - name: Stat additional kvm disk
               ansible.builtin.stat:
-                path: "{{ cache_dir }}/{{ inventory_hostname }}.add.img"
+                path: "{{ molecule_libvirt_path }}/{{ inventory_hostname }}.add.img"
               register: guest_addisk_query
 
             - name: Create additional kvm disk for lvm instances
@@ -77,7 +73,7 @@
               args:
                 creates: "{{ guest_disk }}"
               vars:
-                guest_disk: "{{ cache_dir }}/{{ inventory_hostname }}.add.img"
+                guest_disk: "{{ molecule_libvirt_path }}/{{ inventory_hostname }}.add.img"
                 guest_disk_size: "{{ 2 * (disk_size | int) }}"
               when:
                 - not guest_addisk_query.stat.exists
@@ -91,7 +87,7 @@
                 group: kvm
                 mode: 0660
               vars:
-                guest_disk: "{{ cache_dir }}/{{ inventory_hostname }}.add.img"
+                guest_disk: "{{ molecule_libvirt_path }}/{{ inventory_hostname }}.add.img"
               when: partitioning_method == 'lvm'
 
             - name: Flush handlers
@@ -111,18 +107,17 @@
           tags: always
 
       always:
-
         - name: Set debug facts
           ansible.builtin.set_fact:
             debug_disk: "{{ disk_location }}.debug"
             debug_hostdir: "{{ _hostdir }}"
             debug_logfile: "{{ _logfile }}"
             debug_crashdir: "{{ _crashdir }}"
-            debug_output_dir: "{{ output_dir }}"
-            debug_output_curtin: "{{ output_dir }}/{{ inventory_hostname }}.curtin.log"
-            debug_output_screenshot: "{{ output_dir }}/{{ inventory_hostname }}.png"
+            debug_output_dir: "{{ molecule_install_dir }}"
+            debug_output_curtin: "{{ molecule_install_dir }}/{{ inventory_hostname }}.curtin.log"
+            debug_output_screenshot: "{{ molecule_install_dir }}/{{ inventory_hostname }}.png"
           vars:
-            _hostdir: "{{ cache_dir }}/{{ inventory_hostname }}"
+            _hostdir: "{{ molecule_libvirt_path }}/{{ inventory_hostname }}"
             _logfile: "{{ _hostdir }}/var/log/installer/curtin-install.log"
             _crashdir: "{{ _hostdir }}/var/crash/"
 
@@ -136,11 +131,9 @@
         - name: Take guest screenshot
           ansible.builtin.command: "virsh screenshot {{ inventory_hostname }} {{ debug_output_screenshot }}"
           delegate_to: localhost
-          when: molecule_debug
           become: true
 
   handlers:
-
     - name: Create definition for additional kvm guest disk
       ansible.builtin.template:
         src: disk.xml.j2
@@ -150,9 +143,9 @@
         mode: 0660
       vars:
         guest_hostname: "{{ inventory_hostname }}"
-        guest_disk_extra_path: "{{ cache_dir }}/{{ inventory_hostname }}.add.img"
+        guest_disk_extra_path: "{{ molecule_libvirt_path }}/{{ inventory_hostname }}.add.img"
         guest_disk_format: raw
-        guest_disk_xml: "{{ cache_dir }}/{{ guest_hostname }}.disk.xml"
+        guest_disk_xml: "{{ molecule_libvirt_path }}/{{ guest_hostname }}.disk.xml"
       delegate_to: localhost
       listen: attach kvm guest disk
 
@@ -160,6 +153,6 @@
       ansible.builtin.command: "virsh attach-device {{ guest_hostname }} --file {{ guest_disk_xml }} --config"
       vars:
         guest_hostname: "{{ inventory_hostname }}"
-        guest_disk_xml: "{{ cache_dir }}/{{ guest_hostname }}.disk.xml"
+        guest_disk_xml: "{{ molecule_libvirt_path }}/{{ guest_hostname }}.disk.xml"
       delegate_to: localhost
       listen: attach kvm guest disk

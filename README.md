@@ -5,7 +5,12 @@
 
 An opinionated [ansible role](https://galaxy.ansible.com/nephelaiio/growfs) to grow filesystems for linux systems
 
+## Dependencies
+
+Role execution requires filters defined in [nephelaiio.plugins](https://galaxy.ansible.com/ui/repo/published/nephelaiio/plugins/) collection
+
 ## Use case
+
 The main use case for the role is to automatically grow partitions/filesystems on systems installed using [nephelaiio.centos_installer](https://galaxy.ansible.com/nephelaiio/centos_installer) and [nephelaiio.ubuntu_installer](https://galaxy.ansible.com/nephelaiio/ubuntu_installer)
 
 ## Logic

@@ -18,25 +18,28 @@ UBUNTU_ISO=${UBUNTU_MIRROR}/${UBUNTU_BASENAME}
 REQUIREMENTS = requirements.yml
 
 ifeq (${MOLECULE_SCENARIO}, ubuntu)
+MOLECULE_DISTRO=${UBUNTU_DISTRO}
 MOLECULE_ISO=${UBUNTU_ISO}
 else ifeq (${MOLECULE_SCENARIO}, debian)
+MOLECULE_DISTRO=${DEBIAN_DISTRO}
 MOLECULE_ISO=${DEBIAN_ISO}
 endif
 
 all: install version lint test
 
 test: lint
-	MOLECULE_ISO=${MOLECULE_ISO} poetry run molecule $@ -s ${MOLECULE_SCENARIO}
+	MOLECULE_DISTRO=${MOLECULE_DISTRO} \
+	MOLECULE_ISO=${MOLECULE_ISO} \
+	poetry run molecule $@ -s ${MOLECULE_SCENARIO}
 
 install:
 	@type poetry >/dev/null || pip3 install poetry
 	@sudo apt-get install -y libvirt-dev
-	@poetry install
+	@poetry install --no-root
 
 lint: install
 	poetry run yamllint .
 	poetry run ansible-lint .
-	poetry run molecule syntax
 
 roles:
 	[ -f ${REQUIREMENTS} ] && yq '.$@[] | .name' -r < ${REQUIREMENTS} \
@@ -49,7 +52,9 @@ collections:
 requirements: roles collections
 
 dependency create prepare converge idempotence side-effect verify destroy login reset:
-	MOLECULE_ISO=${MOLECULE_ISO} poetry run molecule $@ -s ${MOLECULE_SCENARIO}
+	MOLECULE_DISTRO=${MOLECULE_DISTRO} \
+	MOLECULE_ISO=${MOLECULE_ISO} \
+	poetry run molecule $@ -s ${MOLECULE_SCENARIO}
 
 ignore:
 	poetry run ansible-lint --generate-ignore

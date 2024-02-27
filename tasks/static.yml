@@ -12,6 +12,7 @@
     label: "{{ partition_target.name }}"
   loop: "{{ __growfs_target_devices }}"
   when: (item.used_sectors | int) < ((item.sectors | int) * (growfs_resize_threshold | int)/100)
+  tags: skip_ansible_lint
 
 - name: Resize filesystems (ansible < 2.10)
   community.general.filesystem:

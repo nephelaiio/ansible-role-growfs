@@ -3,9 +3,13 @@ fileignoreconfig:
   ignore_detectors: [filecontent]
 - filename: tasks/lvm.yml
   ignore_detectors: [filecontent]
+- filename: tasks/metadata/storage.yml
+  ignore_detectors: [filecontent]
 - filename: molecule/ubuntu/molecule.yml
   ignore_detectors: [filecontent]
 - filename: molecule/debian/molecule.yml
+  ignore_detectors: [filecontent]
+- filename: molecule/common/inventory.yml
   ignore_detectors: [filecontent]
 - filename: molecule/common/create.yml
   ignore_detectors: [filecontent]
