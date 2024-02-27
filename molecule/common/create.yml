@@ -46,7 +46,7 @@
       vars:
         debian_installer_interface_name: enp1s0
         debian_installer_target_dir: "{{ molecule_libvirt_path }}"
-        debian_installer_image_url: "{{ debian_installer_dest }}"
+        debian_installer_image_url: "{{ molecule_installer_dest }}"
         debian_installer_hostname: "{{ guest.installer_hostname }}"
         debian_installer_username: molecule
         debian_installer_password: "{{ 'molecule' | password_hash('sha512') }}"
