@@ -48,7 +48,7 @@ Please make sure your environment has [docker](https://www.docker.com) installed
 Role is tested against the following distributions (kvm guests):
 
   * Ubuntu Focal
-  * CentOS 7
+  * Debian 11
 
 You can test the role directly from sources using command ` molecule test `
 

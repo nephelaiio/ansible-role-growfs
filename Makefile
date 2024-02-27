@@ -1,17 +1,32 @@
 .PHONY: all ${MAKECMDGOALS}
 
 MOLECULE_SCENARIO ?= ubuntu
-MOLECULE_DOCKER_IMAGE ?= ubuntu2004
 GALAXY_API_KEY ?=
 GITHUB_REPOSITORY ?= $$(git config --get remote.origin.url | cut -d: -f 2 | cut -d. -f 1)
 GITHUB_ORG = $$(echo ${GITHUB_REPOSITORY} | cut -d/ -f 1)
 GITHUB_REPO = $$(echo ${GITHUB_REPOSITORY} | cut -d/ -f 2)
+DEBIAN_DISTRO ?= current
+DEBIAN_SHASUMS = https://mirror.cogentco.com/debian-cd/${DEBIAN_DISTRO}/amd64/iso-cd/SHA256SUMS
+DEBIAN_MIRROR = $$(dirname ${DEBIAN_SHASUMS})
+DEBIAN_BASENAME = $$(curl -s ${DEBIAN_SHASUMS} | grep "debian-[0-9]" | awk '{print $$2}')
+DEBIAN_ISO=${DEBIAN_MIRROR}/${DEBIAN_BASENAME}
+UBUNTU_DISTRO ?= jammy
+UBUNTU_SHASUMS = https://releases.ubuntu.com/${UBUNTU_DISTRO}/SHA256SUMS
+UBUNTU_MIRROR = $$(dirname ${UBUNTU_SHASUMS})
+UBUNTU_BASENAME = $$(curl -s ${UBUNTU_SHASUMS} | grep "live-server-amd64" | awk '{print $$2}' | sed -e 's/\*//g')
+UBUNTU_ISO=${UBUNTU_MIRROR}/${UBUNTU_BASENAME}
 REQUIREMENTS = requirements.yml
+
+ifeq (${MOLECULE_SCENARIO}, ubuntu)
+MOLECULE_ISO=${UBUNTU_ISO}
+else ifeq (${MOLECULE_SCENARIO}, debian)
+MOLECULE_ISO=${DEBIAN_ISO}
+endif
 
 all: install version lint test
 
 test: lint
-	poetry run molecule $@ -s ${MOLECULE_SCENARIO}
+	MOLECULE_ISO=${MOLECULE_ISO} poetry run molecule $@ -s ${MOLECULE_SCENARIO}
 
 install:
 	@type poetry >/dev/null || pip3 install poetry
@@ -34,7 +49,7 @@ collections:
 requirements: roles collections
 
 dependency create prepare converge idempotence side-effect verify destroy login reset:
-	MOLECULE_DOCKER_IMAGE=${MOLECULE_DOCKER_IMAGE} poetry run molecule $@ -s ${MOLECULE_SCENARIO}
+	MOLECULE_ISO=${MOLECULE_ISO} poetry run molecule $@ -s ${MOLECULE_SCENARIO}
 
 ignore:
 	poetry run ansible-lint --generate-ignore
