@@ -11,11 +11,10 @@ galaxy_info:
         - all
     - name: Ubuntu
       versions:
-        - jammy
+        - all
     - name: Debian
       versions:
-        - bookworm
-        - bulleye
+        - all
   galaxy_tags: ['growfs']
 
 dependencies: []
