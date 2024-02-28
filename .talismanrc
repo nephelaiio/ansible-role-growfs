@@ -1,4 +1,6 @@
 fileignoreconfig:
+- filename: pyproject.toml
+  ignore_detectors: [filecontent]
 - filename: poetry.lock
   ignore_detectors: [filecontent]
 - filename: tasks/lvm.yml
