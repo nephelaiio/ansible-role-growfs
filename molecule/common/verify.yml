@@ -95,11 +95,11 @@
             debug_hostdir: "{{ _hostdir }}"
             debug_logfile: "{{ _logfile }}"
             debug_crashdir: "{{ _crashdir }}"
-            debug_output_dir: "{{ output_dir }}"
-            debug_output_curtin: "{{ output_dir }}/{{ inventory_hostname }}.curtin.log"
-            debug_output_screenshot: "{{ output_dir }}/{{ inventory_hostname }}.png"
+            debug_output_dir: "{{ molecule_install_dir }}"
+            debug_output_curtin: "{{ molecule_install_dir }}/{{ inventory_hostname }}.curtin.log"
+            debug_output_screenshot: "{{ molecule_install_dir }}/{{ inventory_hostname }}.png"
           vars:
-            _hostdir: "{{ cache_dir }}/{{ inventory_hostname }}"
+            _hostdir: "{{ molecule_libvirt_path }}/{{ inventory_hostname }}"
             _logfile: "{{ _hostdir }}/var/log/installer/curtin-install.log"
             _crashdir: "{{ _hostdir }}/var/crash/"
 
@@ -113,7 +113,6 @@
         - name: Take guest screenshot
           ansible.builtin.command: "virsh screenshot {{ inventory_hostname }} {{ debug_output_screenshot }}"
           delegate_to: localhost
-          when: molecule_debug
           become: true
 
         - name: End play for lvm guests

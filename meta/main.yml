@@ -9,16 +9,12 @@ galaxy_info:
     - name: EL
       versions:
         - all
-    - name: Archlinux
-      versions:
-        - all
     - name: Ubuntu
       versions:
-        - xenial
+        - all
     - name: Debian
       versions:
-        - stretch
+        - all
   galaxy_tags: ['growfs']
 
-dependencies:
-  - nephelaiio.plugins
+dependencies: []

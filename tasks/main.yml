@@ -1,8 +1,8 @@
 ---
 - name: Set variable overrides
   ansible.builtin.set_fact:
-    _growfs_packages: "{{ growfs_packages | default(growfs_packages_default | sorted_get(overrides)) }}"
-    _growfs_lvs_fs: "{{ growfs_fs | default(growfs_fs_default) | sorted_get(overrides) }}"
+    _growfs_packages: "{{ growfs_packages | default(growfs_packages_default | nephelaiio.plugins.sorted_get(overrides)) }}"
+    _growfs_lvs_fs: "{{ growfs_fs | default(growfs_fs_default) | nephelaiio.plugins.sorted_get(overrides) }}"
   vars:
     overrides:
       - "{{ ansible_distribution | lower }}-{{ ansible_distribution_release | lower }}"
