@@ -45,7 +45,7 @@ provisioner:
           molecule_libvirt_netaddr: "{{ lookup('env', 'MOLECULE_NET', default='192.168.247.0/24') | ansible.utils.ipv4('network/prefix') }}"
           molecule_libvirt_netsize: "{{ molecule_libvirt_netaddr | ansible.utils.ipaddr('prefix') }}"
           molecule_libvirt_address: "{{ molecule_libvirt_netaddr | ansible.utils.nthhost(1) }}/{{ molecule_libvirt_netsize }}"
-          molecule_libvirt_network: "molecule"
+          molecule_libvirt_network: "growfs"
           molecule_libvirt_path: "/var/lib/libvirt/growfs"
           molecule_install_dir: "{{ lookup('env', 'MOLECULE_OUTPUT_DIR', default='/tmp/logs') }}"
           molecule_kvm_keypair: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/kvm_key"

@@ -1,4 +1,8 @@
 fileignoreconfig:
+- filename: .github/workflows/release.yml
+  ignore_detectors: [filecontent]
+- filename: pyproject.toml
+  ignore_detectors: [filecontent]
 - filename: poetry.lock
   ignore_detectors: [filecontent]
 - filename: tasks/lvm.yml
