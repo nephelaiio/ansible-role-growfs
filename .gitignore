@@ -1,4 +1,5 @@
 *.swp
+.ansible/
 .molecule/
 .venv/
 ansible_collections/

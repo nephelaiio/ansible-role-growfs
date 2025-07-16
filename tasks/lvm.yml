@@ -203,7 +203,7 @@
           ansible.builtin.file:
             path: "{{ growfs_lvs_mount }}"
             state: directory
-            mode: 0755
+            mode: "u=rwx,go=rx"
 
         - name: Manage lvs mount
           ansible.posix.mount:

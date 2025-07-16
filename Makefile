@@ -49,7 +49,7 @@ lint: install
 	uv run yamllint . -c .yamllint
 	ANSIBLE_COLLECTIONS_PATH=$(COLLECTION_PATH) \
 	ANSIBLE_ROLES_PATH=$(ROLE_PATH) \
-	uv run ansible-lint -p playbooks/ --exclude ".ansible/*"
+	uv run ansible-lint .
 
 ifeq (login,$(firstword $(MAKECMDGOALS)))
     LOGIN_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
