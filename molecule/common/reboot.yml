@@ -2,39 +2,37 @@
 - name: Build dynamic inventory
   ansible.builtin.import_playbook: inventory.yml
 
-
-- name: Reboot guest
+- name: Reboot guests
   hosts: guests
+  gather_facts: false
   become: true
-  pre_tasks:
-
-    - name: Shut down guest
-      community.general.shutdown:
-
-    - name: Wait for shutdown to complete
-      ansible.builtin.pause:
-        seconds: 30
-
+  vars_files:
+    - vars.yml
   tasks:
-    - name: Start guests
+    - name: Query active KVM guests
+      ansible.builtin.command: "virsh list --state-running --name"
+      changed_when: false
+      register: _kvm_guest_query
       delegate_to: localhost
+
+    - name: Shut down guests
+      when: inventory_hostname in (_kvm_guest_query.stdout_lines | map('trim'))
       block:
+        - name: Shut down guest
+          community.general.shutdown:
 
-        - name: Force kvm guest poweroff
-          ansible.builtin.shell: "virsh destroy {{ inventory_hostname }} >/dev/null 2>&1"
-          tags: skip_ansible_lint
-          ignore_errors: true
-          failed_when: false
-          changed_when: false
+        - name: Wait for KVM guest shutdown
+          ansible.builtin.command: "virsh list --state-running --name"
+          register: _kvm_guest_query
+          failed_when: inventory_hostname in (_kvm_guest_query.stdout_lines | map('trim'))
+          retries: 6
+          delay: 10
+          delegate_to: localhost
 
-        - name: Wait for kvm guest poweroff
-          ansible.builtin.pause:
-            minutes: 2
-
-        - name: Start kvm guest
-          community.libvirt.virt:
-            name: "{{ inventory_hostname }}"
-            state: running
+    - name: Restore KVM guest
+      ansible.builtin.command: "virsh start {{ inventory_hostname }}"
+      changed_when: true
+      delegate_to: localhost
 
     - name: Wait for connection
       ansible.builtin.wait_for_connection:

@@ -2,38 +2,44 @@
 - name: Destroy KVM guests
   hosts: localhost
   become: true
+  vars_files:
+    - vars.yml
   tasks:
-    - name: Destroy KVM guest
-      community.libvirt.virt:
-        state: destroyed
-        name: "{{ guest.installer_hostname }}"
-      loop_control:
-        loop_var: guest
-        label: "{{ guest.installer_hostname }}"
-      loop: "{{ molecule_kvm_guests }}"
-      failed_when: false
+    - name: Query active KVM guests
+      ansible.builtin.command: "virsh list --state-running --name"
+      register: _kvm_guest_query
 
-    - name: Undefine KVM guest
-      community.libvirt.virt:
-        command: undefine
-        name: "{{ guest.installer_hostname }}"
-      loop_control:
-        loop_var: guest
-        label: "{{ guest.installer_hostname }}"
-      loop: "{{ molecule_kvm_guests }}"
-      failed_when: false
+    - name: Destroy KVM guest
+      ansible.builtin.command: "virsh destroy {{ item }}"
+      loop: "{{ molecule_kvm_guests | map(attribute='installer_hostname') }}"
+      when: item in (_kvm_guest_query.stdout_lines | map('trim'))
+
+    - name: Query inactive KVM guests
+      ansible.builtin.command: "virsh list --all --name --inactive"
+      register: _kvm_guest_query
+
+    - name: Undefine inactive KVM guest
+      ansible.builtin.command: "virsh undefine {{ item }}"
+      loop: "{{ molecule_kvm_guests | map(attribute='installer_hostname') }}"
+      when: item in (_kvm_guest_query.stdout_lines | map('trim'))
 
     - name: Destroy KVM guest disks
       ansible.builtin.file:
-        path: "{{ guest_disk }}"
+        path: "{{ _libvirt_path }}/{{ item }}.img"
         state: absent
-      vars:
-        guest_disk: "{{ molecule_libvirt_path }}/{{ guest.installer_hostname }}.img"
-      loop_control:
-        loop_var: guest
-        label: "{{ guest.installer_hostname }}"
-      loop: "{{ molecule_kvm_guests }}"
+      loop: "{{ molecule_kvm_guests | map(attribute='installer_hostname') }}"
 
+    - name: Destroy KVM additional guest disks
+      ansible.builtin.file:
+        path: "{{ _libvirt_path }}/{{ item }}.add.img"
+        state: absent
+      loop: "{{ molecule_kvm_guests | map(attribute='installer_hostname') }}"
+
+    - name: Destroy KVM guest definitions
+      ansible.builtin.file:
+        path: "{{ _libvirt_path }}/{{ item }}.xml"
+        state: absent
+      loop: "{{ molecule_kvm_guests | map(attribute='installer_hostname') }}"
 
 - name: Destroy libvirt network and storage
   hosts: localhost
@@ -42,24 +48,31 @@
     - vars.yml
   tasks:
     - name: Stop libvirt network
-      community.libvirt.virt_net:
-        command: destroy
-        name: "{{ _libvirt_network }}"
+      ansible.builtin.command: "virsh net-destroy {{ _libvirt_network }}"
       when: _libvirt_network != "default"
       failed_when: false
 
-    - name: Delete libvirt network
-      community.libvirt.virt_net:
-        command: undefine
-        name: "{{ _libvirt_network }}"
-      when: _libvirt_network != "default"
+    - name: Query inactive KVM networks
+      ansible.builtin.command: "virsh net-list --name --inactive"
+      register: _libvirt_net_query
+      changed_when: false
 
-    - name: Undefine libvirt pool
-      community.libvirt.virt_pool:
-        state: undefined
-        name: "{{ _libvirt_pool }}"
+    - name: Undefine inactive libvirt network
+      ansible.builtin.command: "virsh net-undefine {{ _libvirt_network }}"
+      when: (_libvirt_network | trim) in (_libvirt_net_query.stdout_lines | map('trim') | difference(['default']))
+
+    - name: Query libvirt pools
+      ansible.builtin.command: "virsh pool-list --name"
+      register: _pool_query
+
+    - name: Set pool facts
+      ansible.builtin.set_fact:
+        _libvirt_pool_list: "{{ _pool_query.stdout_lines | map('trim') | list }}"
 
     - name: Destroy libvirt pool
-      ansible.builtin.file:
-        path: "{{ _libvirt_pool }}"
-        state: absent
+      ansible.builtin.command: "virsh pool-destroy {{ _libvirt_pool }}"
+      when: (_libvirt_pool | trim) in (_pool_query.stdout_lines | map('trim'))
+
+    - name: Undefine libvirt pool
+      ansible.builtin.command: "virsh pool-undefine {{ _libvirt_pool }}"
+      when: (_libvirt_pool | trim) in _libvirt_pool_list

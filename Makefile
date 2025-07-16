@@ -1,8 +1,11 @@
 .PHONY: all ${MAKECMDGOALS}
 
+MAKEFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
+MAKEFILE_DIR := $(dir $(MAKEFILE_PATH))
+
 MOLECULE_SCENARIO ?= ubuntu
 GALAXY_API_KEY ?=
-GITHUB_REPOSITORY ?= $$(git config --get remote.origin.url | cut -d: -f 2 | cut -d. -f 1)
+GITHUB_REPOSITORY ?= $$(git config --get remote.origin.url | cut -d':' -f 2 | cut -d'.' -f 1)
 GITHUB_ORG = $$(echo ${GITHUB_REPOSITORY} | cut -d/ -f 1)
 GITHUB_REPO = $$(echo ${GITHUB_REPOSITORY} | cut -d/ -f 2)
 DEBIAN_DISTRO ?= current
@@ -16,6 +19,13 @@ UBUNTU_MIRROR = $$(dirname ${UBUNTU_SHASUMS})
 UBUNTU_BASENAME = $$(curl -s ${UBUNTU_SHASUMS} | grep "live-server-amd64" | awk '{print $$2}' | sed -e 's/\*//g')
 UBUNTU_ISO=${UBUNTU_MIRROR}/${UBUNTU_BASENAME}
 REQUIREMENTS = requirements.yml
+COLLECTION_NAMESPACE = $$(yq -r '.namespace' < galaxy.yml)
+COLLECTION_NAME = $$(yq -r '.name' < galaxy.yml)
+COLLECTION_VERSION = $$(yq -r '.version' < galaxy.yml)
+COLLECTION_PATH = $(MAKEFILE_DIR)
+ROLE_PATH = $(MAKEFILE_DIR)/roles:$(MAKEFILE_DIR)/../
+
+LOGIN_ARGS ?=
 
 ifeq (${MOLECULE_SCENARIO}, ubuntu)
 MOLECULE_DISTRO=${UBUNTU_DISTRO}
@@ -30,48 +40,41 @@ all: install version lint test
 test: lint
 	MOLECULE_DISTRO=${MOLECULE_DISTRO} \
 	MOLECULE_ISO=${MOLECULE_ISO} \
-	poetry run molecule $@ -s ${MOLECULE_SCENARIO}
+	uv run molecule $@ -s ${MOLECULE_SCENARIO}
 
 install:
-	@type poetry >/dev/null || pip3 install poetry
-	@sudo apt-get install -y libvirt-dev
-	@poetry install --no-root
+	@uv sync
 
 lint: install
-	poetry run yamllint .
-	poetry run ansible-lint .
+	uv run yamllint . -c .yamllint
+	ANSIBLE_COLLECTIONS_PATH=$(COLLECTION_PATH) \
+	ANSIBLE_ROLES_PATH=$(ROLE_PATH) \
+	uv run ansible-lint -p playbooks/ --exclude ".ansible/*"
 
-roles:
-	[ -f ${REQUIREMENTS} ] && yq '.$@[] | .name' -r < ${REQUIREMENTS} \
-		| xargs -L1 poetry run ansible-galaxy role install --force || exit 0
+ifeq (login,$(firstword $(MAKECMDGOALS)))
+    LOGIN_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+    $(eval $(subst $(space),,$(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))):;@:)
+endif
 
-collections:
-	[ -f ${REQUIREMENTS} ] && yq '.$@[]' -r < ${REQUIREMENTS} \
-		| xargs -L1 echo poetry run ansible-galaxy -vvv collection install --force || exit 0
-
-requirements: roles collections
-
-dependency create prepare converge idempotence side-effect verify destroy login reset:
+dependency create prepare converge idempotence side-effect verify destroy cleanup reset list login:
+	ANSIBLE_COLLECTIONS_PATH=$(COLLECTION_PATH) \
+	ANSIBLE_ROLES_PATH=$(ROLE_PATH) \
 	MOLECULE_DISTRO=${MOLECULE_DISTRO} \
 	MOLECULE_ISO=${MOLECULE_ISO} \
-	poetry run molecule $@ -s ${MOLECULE_SCENARIO}
+	uv run dotenv molecule $@ -s ${MOLECULE_SCENARIO} ${LOGIN_ARGS}
 
 ignore:
-	poetry run ansible-lint --generate-ignore
+	uv run ansible-lint --generate-ignore
 
 clean: destroy reset
-	@poetry env remove $$(which python) >/dev/null 2>&1 || exit 0
+	@uv env remove $$(which python) >/dev/null 2>&1 || exit 0
 
-publish:
-	@echo publishing repository ${GITHUB_REPOSITORY}
-	@echo GITHUB_ORGANIZATION=${GITHUB_ORG}
-	@echo GITHUB_REPOSITORY=${GITHUB_REPO}
-	@poetry run ansible-galaxy role import \
-		--api-key ${GALAXY_API_KEY} ${GITHUB_ORG} ${GITHUB_REPO}
+publish: build
+	uv run ansible-galaxy collection publish --api-key ${GALAXY_API_KEY} \
+		"${COLLECTION_NAMESPACE}-${COLLECTION_NAME}-${COLLECTION_VERSION}.tar.gz"
 
 version:
-	@poetry run molecule --version
+	@uv run molecule --version
 
 debug: version
-	sudo ufw status
-	@poetry export --dev --without-hashes
+	@uv export --all-packages --no-hashes

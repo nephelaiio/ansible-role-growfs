@@ -2,8 +2,9 @@
 - name: Add guests to inventory
   hosts: localhost
   become: true
+  vars_files:
+    - vars.yml
   tasks:
-
     - name: Add guest to inventory
       ansible.builtin.add_host:
         name: "{{ guest_hostname }}"
@@ -12,9 +13,9 @@
         ansible_user: molecule
         ansible_host: "{{ guest_address }}"
         ansible_port: "{{ guest_port }}"
-        ansible_ssh_private_key_file: "{{ molecule_kvm_keypair }}"
+        ansible_ssh_private_key_file: "{{ _libvirt_keypair }}"
         partitioning_method: "{{ guest.installer_partitioning_method }}"
-        disk_location: "{{ molecule_libvirt_path }}/{{ guest.installer_hostname }}.img"
+        disk_location: "{{ _libvirt_path }}/{{ guest.installer_hostname }}.img"
         disk_size: "{{ guest.installer_disk_size }}"
         disk_index: "{{ disk_index }}"
       vars:

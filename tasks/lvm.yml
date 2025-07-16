@@ -55,10 +55,12 @@
     partition_begin: "{{ item.partitions | map(attribute='start') | map('int') | max | string }}"
     partition_target: "{{ item.partitions | selectattr('start', 'equalto', partition_begin) | list | first }}"
     partition_device: "/dev/{{ item.name }}"
+    resize_threshold: "{{ (item.used_sectors | int) < ((item.sectors | int) * (growfs_resize_threshold | int)/100) }}"
+    resize_absolute: "{{ (item.used_sectors | int) < ((item.sectors | int) - (growfs_resize_absolute | int)) }}"
   loop_control:
     label: "{{ partition_target.name }}"
   loop: "{{ __growfs_target_devices }}"
-  when: (item.used_sectors | int) < ((item.sectors | int) * (growfs_resize_threshold | int)/100)
+  when: (resize_threshold | bool) or (resize_absolute | bool)
   tags: skip_ansible_lint
 
 - name: Resize filesystems (ansible < 2.10)
@@ -139,7 +141,7 @@
   ansible.builtin.command: "pvresize {{ item.pv_name }}"
   loop_control:
     label: "{{ item.pv_name }}"
-  loop: '{{ lvm_pvs }}'
+  loop: "{{ lvm_pvs }}"
   changed_when: false
   tags: skip_ansible_lint
 
@@ -168,7 +170,7 @@
 
     - name: Clear lvs target
       ansible.builtin.set_fact:
-        growfs_lvs_name: ''
+        growfs_lvs_name: ""
       when: __growfs_target_lvs | length == 0
 
 - name: Extend logical volume

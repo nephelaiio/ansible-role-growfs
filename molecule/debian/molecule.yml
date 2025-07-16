@@ -33,22 +33,18 @@ provisioner:
     hosts:
       all:
         vars:
-          ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+          ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
 
           growfs_device_filter: "vd.*"
 
           molecule_scenario: "${MOLECULE_SCENARIO_NAME}"
           molecule_distro: "{{ lookup('env', 'MOLECULE_DISTRO') }}"
-          molecule_iso: "{{ lookup('env', 'MOLECULE_ISO') }}"
-          molecule_installer_url: "{{ molecule_iso }}"
-          molecule_installer_dest: "file://{{ molecule_libvirt_path }}/{{ molecule_distro }}.iso"
+          molecule_installer_url: "{{ lookup('env', 'MOLECULE_ISO') }}"
           molecule_libvirt_netaddr: "{{ lookup('env', 'MOLECULE_NET', default='192.168.247.0/24') | ansible.utils.ipv4('network/prefix') }}"
           molecule_libvirt_netsize: "{{ molecule_libvirt_netaddr | ansible.utils.ipaddr('prefix') }}"
           molecule_libvirt_address: "{{ molecule_libvirt_netaddr | ansible.utils.nthhost(1) }}/{{ molecule_libvirt_netsize }}"
           molecule_libvirt_network: "growfs"
-          molecule_libvirt_path: "/var/lib/libvirt/growfs"
           molecule_install_dir: "{{ lookup('env', 'MOLECULE_OUTPUT_DIR', default='/tmp/logs') }}"
-          molecule_kvm_keypair: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/kvm_key"
           molecule_kvm_guests:
             - installer_hostname: "{{ molecule_distro }}-lvm-10g"
               installer_disk_size: "{{ 10*(1024**3) }}"
@@ -79,6 +75,11 @@ provisioner:
 verifier:
   name: ansible
 scenario:
+  create_sequence:
+    - dependency
+    - create
+  prepare_sequence:
+    - prepare
   test_sequence:
     - dependency
     - create

@@ -1,72 +1,121 @@
 ---
 - name: Configure KVM host
   hosts: localhost
-  become: true
   vars_files:
     - vars.yml
   tasks:
-    - name: Install package requirements
-      ansible.builtin.package:
-        name:
-          - qemu-kvm
-          - qemu-efi
-          - libvirt-clients
-          - libvirt-daemon-system
-          - libvirt-daemon-system-systemd
-          - python3-libvirt
-      become: true
-
     - name: Query libvirt pools
-      community.libvirt.virt_pool:
-        command: list_pools
-      register: _pools
+      ansible.builtin.command: "virsh pool-list --name"
+      register: _pool_query
 
     - name: Create libvirt path
       ansible.builtin.file:
         path: "{{ _libvirt_path }}"
         state: directory
-        owner: libvirt-qemu
-        group: kvm
-        mode: 0755
+        owner: "{{ _libvirt_daemon_user }}"
+        group: "{{ _libvirt_daemon_group }}"
+        mode: "u=rwx,g=rx,o=rx"
       become: true
 
-    - name: Define libvirt pool
-      community.libvirt.virt_pool:
-        command: define
-        name: "{{ _libvirt_pool }}"
-        xml: "{{ lookup('ansible.builtin.template', 'pool.j2.xml') }}"
-      vars:
-        _pool: "{{ _libvirt_pool }}"
-        _path: "{{ _libvirt_path }}"
+    - name: Grant playbook user access to libvirt path
+      ansible.posix.acl:
+        path: "{{ _libvirt_path }}"
+        entity: "{{ ansible_env.USER }}"
+        etype: user
+        permissions: rwx
+        state: present
+      become: true
 
-    - name: Activate libvirt pool
-      community.libvirt.virt_pool:
-        state: active
-        name: "{{ _libvirt_pool }}"
+    - name: Create libvirt tempdir
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: libvirt
+      register: _libvirt_tmpdir
+      changed_when: false
 
-    - name: Add libvirt network
-      community.libvirt.virt_net:
-        command: define
-        name: "{{ _libvirt_network }}"
-        xml: "{{ lookup('ansible.builtin.template', 'network.j2.xml') }}"
-      vars:
-        _network: "{{ _libvirt_network }}"
-        _address: "{{ _libvirt_address }}"
-        _dhcp: "{{ _libvirt_dhcp }}"
-        _net_address: "{{ _address | ansible.utils.ipaddr('1') | ansible.utils.ipaddr('address') }}"
-        _net_mask: "{{ _address | ansible.utils.ipaddr('netmask') }}"
-        _net_dhcp_start: "{{ _dhcp | ansible.utils.ipaddr('2') | ansible.utils.ipaddr('address') }}"
-        _net_dhcp_end: "{{ _dhcp | ansible.utils.ipaddr('-2') | ansible.utils.ipaddr('address') }}"
-      when: _libvirt_network != "default"
+    - name: Manage libvirt pools and networks
+      become: true
+      block:
+        - name: Query libvirt pools
+          ansible.builtin.command: "virsh pool-list --name"
+          register: _pool_query
+          changed_when: false
 
-    - name: Start libvirt network
-      community.libvirt.virt_net:
-        command: create
-        name: "{{ _libvirt_network }}"
-      when: _libvirt_network != "default"
+        - name: Create libvirt pool
+          when: (_libvirt_pool | trim) not in (_pool_query.stdout_lines | map('trim') | list)
+          block:
+            - name: Create libvirt pool template
+              ansible.builtin.template:
+                src: "pool.j2.xml"
+                dest: "{{ _libvirt_tmpdir.path }}/pool.xml"
+                mode: "u=rw,g=r,o="
+              vars:
+                _pool_name: "{{ _libvirt_pool }}"
+                _pool_path: "{{ _libvirt_path }}"
+
+            - name: Define libvirt pool
+              ansible.builtin.command: "virsh pool-define {{ _libvirt_tmpdir.path }}/pool.xml --validate"
+              changed_when: true
+
+            - name: Start libvirt pool
+              ansible.builtin.command: "virsh pool-start {{ _libvirt_pool }}"
+              changed_when: true
+
+        - name: Query libvirt networks
+          ansible.builtin.command: "virsh net-list --name --all"
+          register: _net_query
+          changed_when: false
+
+        - name: Query inactive libvirt networks
+          ansible.builtin.command: "virsh net-list --inactive --name"
+          register: _net_inactive_query
+          changed_when: false
+
+        - name: Set libvirt network facts
+          ansible.builtin.set_fact:
+            _libvirt_network_create: "{{ (_libvirt_network_custom | bool) and not (_libvirt_network_exists | bool) }}"
+            _libvirt_network_present: "{{ _libvirt_network_exists }}"
+            _libvirt_network_inactive: "{{ (_libvirt_network | trim) in _libvirt_network_inactive_list }}"
+          vars:
+            _libvirt_network_list: "{{ _net_query.stdout_lines | map('trim') | list }}"
+            _libvirt_network_exists: "{{ (_libvirt_network | trim) in _libvirt_network_list }}"
+            _libvirt_network_custom: "{{ _libvirt_network != 'default' }}"
+            _libvirt_network_inactive_list: "{{ _net_inactive_query.stdout_lines | map('trim') | list }}"
+
+        - name: Create libvirt network
+          when: _libvirt_network_create | bool
+          block:
+            - name: Create libvirt network template
+              ansible.builtin.template:
+                src: "network.j2.xml"
+                dest: "{{ _libvirt_tmpdir.path }}/network.xml"
+                mode: "u=rw,g=r,o="
+              vars:
+                _net_name: "{{ _libvirt_network | trim }}"
+                _net_address: "{{ _libvirt_address | ansible.utils.ipaddr('address') }}"
+                _net_mask: "{{ _libvirt_address | ansible.utils.ipaddr('netmask') }}"
+                _net_bridge: "{{ _net_name }}br0"
+
+            - name: Add libvirt network
+              ansible.builtin.command: "virsh net-define {{ _libvirt_tmpdir.path }}/network.xml --validate"
+              changed_when: _libvirt_network_create | bool
+
+            - name: Set libvirt network autostart
+              ansible.builtin.command: "virsh net-autostart {{ _libvirt_network }}"
+              changed_when: _libvirt_network_create | bool
+
+        - name: Start libvirt network
+          ansible.builtin.command: "virsh net-start {{ _libvirt_network }}"
+          when: (_libvirt_network_create | bool) or (_libvirt_network_inactive | bool)
+
+      always:
+        - name: Destroy libvirt tempdir
+          ansible.builtin.file:
+            dest: "{{ _libvirt_tmpdir.path }}"
+            state: absent
+          changed_when: false
 
     - name: Create KVM keypair
       ansible.builtin.command:
-        cmd: "ssh-keygen -t rsa -f {{ molecule_kvm_keypair }} -q -P '' -C ''"
-        creates: "{{ molecule_kvm_keypair }}"
-      become: false
+        cmd: "ssh-keygen -t rsa -f {{ _libvirt_keypair }} -q -P '' -C ''"
+        creates: "{{ _libvirt_keypair }}"

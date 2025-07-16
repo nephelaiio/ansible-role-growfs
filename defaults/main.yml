@@ -14,8 +14,9 @@ growfs_packages_default:
     - gdisk
   default: []
 growfs_resize_threshold: 95
+growfs_resize_absolute: 10000000000 # 10GB
 growfs_lvs_create: false
-growfs_lvs_regex: '[^(swap)]'
+growfs_lvs_regex: "[^(swap)]"
 # growfs_lvs_name
 # growfs_lvs_mount
 # growfs_lvs_fs

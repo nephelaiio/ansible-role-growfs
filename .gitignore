@@ -1,3 +1,5 @@
 *.swp
 .molecule/
 .venv/
+ansible_collections/
+libvirt/

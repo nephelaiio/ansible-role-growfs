@@ -2,12 +2,12 @@
 - name: Build dynamic inventory
   ansible.builtin.import_playbook: inventory.yml
 
-
 - name: Verify guests
   hosts: guests
   gather_facts: false
+  vars_files:
+    - vars.yml
   tasks:
-
     - name: Debug connection parameters
       ansible.builtin.debug:
         msg: "ssh {{ ansible_user }}@{{ ansible_host }} {{ _args }} -i {{ ansible_ssh_private_key_file }} -p {{ ansible_port }}"
@@ -16,7 +16,6 @@
 
     - name: Verify filesystems
       block:
-
         - name: Wait for connection
           ansible.builtin.wait_for_connection:
             timeout: 600
@@ -41,7 +40,6 @@
         - name: Include lvm checks
           when: partitioning_method == 'lvm'
           block:
-
             - name: Verify lvm partitioning
               ansible.builtin.fail:
                 msg: "lvm partitioning failed: {{ lsblk_output.stdout }}"
@@ -88,7 +86,6 @@
             - partitioning_method == 'lvm'
 
       always:
-
         - name: Set debug facts
           ansible.builtin.set_fact:
             debug_disk: "{{ disk_location }}.debug"
@@ -99,7 +96,7 @@
             debug_output_curtin: "{{ molecule_install_dir }}/{{ inventory_hostname }}.curtin.log"
             debug_output_screenshot: "{{ molecule_install_dir }}/{{ inventory_hostname }}.png"
           vars:
-            _hostdir: "{{ molecule_libvirt_path }}/{{ inventory_hostname }}"
+            _hostdir: "{{ _libvirt_path }}/{{ inventory_hostname }}"
             _logfile: "{{ _hostdir }}/var/log/installer/curtin-install.log"
             _crashdir: "{{ _hostdir }}/var/crash/"
 
