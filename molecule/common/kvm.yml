@@ -1,6 +1,75 @@
 ---
+- name: Install KVM binaries
+  hosts: localhost
+  become: true
+  connection: local
+  tasks:
+    - name: Verify host distribution support
+      ansible.builtin.assert:
+        that:
+          - _distro in ['Ubuntu', 'Debian'] or _family == 'Darwin'
+          - _family == 'Darwin' or _distro == 'Ubuntu' or _version is version('12', '>=')
+          - _family == 'Darwin' or _distro == 'Debian' or _version is version('22.04', '>=')
+        msg: "Unsupported distribution or version. Supported: Ubuntu 22.04+, Debian 12+."
+      vars:
+        _family: "{{ ansible_facts['os_family'] }}"
+        _distro: "{{ ansible_facts['distribution'] }}"
+        _version: "{{ ansible_facts['distribution_version'] }}"
+
+    - name: Install deb package requirements
+      ansible.builtin.apt:
+        name:
+          - qemu-kvm
+          - "{{ _qemu_efi }}"
+          - libvirt-clients
+          - libvirt-daemon-system
+          - libvirt-daemon-system-systemd
+        update_cache: true
+      vars:
+        _is_ubuntu: "{{ ansible_facts['distribution'] == 'Ubuntu' }}"
+        _is_noble: "{{ ansible_facts['distribution_version'] is version('24.04', '>=') }}"
+        _qemu_efi: "qemu-efi{{ '-aarch64' if (_is_ubuntu and _is_noble) else '' }}"
+
+    - name: Configure Linux libvirt daemon
+      vars:
+        _playbook_user: "{{ lookup('ansible.builtin.env', 'USER', default=ansible_facts['user']) }}"
+      when:
+        - ansible_facts['os_family'] == 'Debian'
+        - _libvirt_daemon_user != 'root'
+      block:
+        - name: Query user groups
+          ansible.builtin.command: "groups {{ _libvirt_daemon_user }}"
+          register: _user_groups
+          changed_when: false
+
+        - name: Ensure user is in libvirt group
+          ansible.builtin.assert:
+            that: _user_groups.stdout.split() | select('equalto', 'libvirt') | list | length > 0
+            msg: |
+              User '{{ _libvirt_daemon_user }}' is not in the 'libvirt' group. Please add the user to the group.
+              sudo usermod -a -G libvirt $USER
+          when: not (_libvirt_become | bool)
+
+        - name: Configure libvirt-qemu daemon user
+          ansible.builtin.lineinfile:
+            dest: /etc/libvirt/qemu.conf
+            regexp: "^#?user ="
+            line: "user = '{{ _libvirt_daemon_user }}'"
+          notify: debian_libvirt_restart
+          become: true
+
+  handlers:
+    - name: Restart libvirt daemon
+      ansible.builtin.systemd:
+        name: libvirtd
+        state: restarted
+        enabled: true
+      listen: debian_libvirt_restart
+      become: true
+
 - name: Configure KVM host
   hosts: localhost
+  connection: local
   vars_files:
     - vars.yml
   tasks:
