@@ -16,6 +16,6 @@
   "env": {},
   "shell": {
     "init_hook": [". .venv/bin/activate"],
-    "scripts":   {}
+    "scripts": {}
   }
 }
