@@ -5,12 +5,6 @@ on:
   pull_request:
     branches:
       - master
-  schedule:
-    - cron: "0 3 * * 0"
-
-defaults:
-  run:
-    working-directory: "nephelaiio.growfs"
 
 jobs:
   molecule:

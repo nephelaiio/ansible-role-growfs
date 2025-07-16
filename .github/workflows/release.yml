@@ -6,10 +6,6 @@ on:
     tags:
       - "*"
 
-defaults:
-  run:
-    working-directory: "nephelaiio.growfs"
-
 jobs:
   release:
     name: release
@@ -17,8 +13,6 @@ jobs:
     steps:
       - name: Check out the codebase.
         uses: actions/checkout@v4
-        with:
-          path: "nephelaiio.growfs"
 
       - name: Install devbox
         uses: jetify-com/devbox-install-action@v0.12.0
