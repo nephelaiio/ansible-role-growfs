@@ -8,7 +8,7 @@ on:
 
 defaults:
   run:
-    working-directory: 'nephelaiio.growfs'
+    working-directory: "nephelaiio.growfs"
 
 jobs:
   lint:
@@ -18,21 +18,12 @@ jobs:
       - name: Check out the codebase
         uses: actions/checkout@v4
         with:
-          path: 'nephelaiio.growfs'
+          path: "nephelaiio.growfs"
 
-      - name: Set up Python 3.
-        uses: actions/setup-python@v5
+      - name: Install devbox
+        uses: jetify-com/devbox-install-action@v0.12.0
         with:
-          python-version: '3.x'
-
-      - name: Update ubuntu repositories
-        run: sudo apt-get update
-
-      - name: Install make
-        run: sudo apt-get install -y make
-
-      - name: Install dependencies
-        run: make install
+          enable-cache: true
 
       - name: Lint code
-        run: make lint
+        run: devbox run -- make lint
