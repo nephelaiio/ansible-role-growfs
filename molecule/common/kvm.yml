@@ -18,6 +18,7 @@
         _is_ubuntu: "{{ ansible_facts['distribution'] == 'Ubuntu' }}"
         _is_noble: "{{ ansible_facts['distribution_version'] is version('24.04', '>=') }}"
         _qemu_efi: "qemu-efi{{ '-aarch64' if (_is_ubuntu and _is_noble) else '' }}"
+      become: true
 
     - name: Query libvirt pools
       ansible.builtin.command: "virsh pool-list --name"
