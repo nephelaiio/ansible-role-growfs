@@ -23,7 +23,7 @@ COLLECTION_NAMESPACE = $$(yq -r '.namespace' < galaxy.yml)
 COLLECTION_NAME = $$(yq -r '.name' < galaxy.yml)
 COLLECTION_VERSION = $$(yq -r '.version' < galaxy.yml)
 COLLECTION_PATH = $(MAKEFILE_DIR)
-ROLE_PATH = $(MAKEFILE_DIR)/roles:$(MAKEFILE_DIR)/../
+ROLE_PATH = $(MAKEFILE_DIR)/roles
 
 LOGIN_ARGS ?=
 
