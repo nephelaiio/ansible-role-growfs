@@ -53,5 +53,5 @@
             debian_installer_interface: "{{ debian_guest.installer_interface }}"
             debian_installer_partman_method: "{{ debian_guest.partitioning_method }}"
             debian_installer_preseed_include: "{{ debian_guest.preseed_include | default('') }}"
-          loop: "{{ ansible_play_hosts }}"
+          loop: "{{ libvirt_platforms | map(attribute='name') }}"
           when: molecule_scenario == "debian"
