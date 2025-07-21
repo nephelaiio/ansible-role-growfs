@@ -17,6 +17,8 @@
   become: "{{ lookup('ansible.builtin.env', 'CI') | default('false') | bool }}"
   vars:
     libvirt_daemon_user: "{{ _libvirt_daemon_user }}"
+    guest_disk_base: "{{ libvirt_path }}/{{ inventory_hostname }}.img"
+    guest_disk_extra: "{{ libvirt_path }}/{{ inventory_hostname }}.add.img"
   tasks:
     - name: Reconfigure KVM guest storage
       delegate_to: localhost
@@ -34,9 +36,6 @@
           delegate_to: localhost
 
         - name: Reconfigure KVM guest disks
-          vars:
-            guest_disk_base: "{{ libvirt_path }}/{{ inventory_hostname }}.img"
-            guest_disk_extra: "{{ libvirt_path }}/{{ inventory_hostname }}.add.img"
           block:
             - name: Stat KVM base disk
               ansible.builtin.stat:
@@ -48,12 +47,10 @@
                 msg: "{{ guest_disk_query.stat }}"
 
             - name: Resize KVM base disks for static partitioning
-              ansible.builtin.command: "qemu-img resize -f raw {{ guest_disk_base }} {{ guest_disk_size }}"
+              ansible.builtin.command: "qemu-img resize -f qcow2 {{ guest_disk_base }} {{ guest_disk_size }}"
               vars:
                 guest_disk_size: "{{ 2 * (molecule_disk_size | int) }}"
-              when:
-                - partitioning_method == 'static'
-                - (guest_disk_size | int) > (guest_disk_query.stat.size | int)
+              when: (guest_disk_size | int) > (guest_disk_query.stat.size | int)
 
             - name: Manage disks for lvm partitioning
               when: partitioning_method == 'lvm'
@@ -63,7 +60,7 @@
                   args:
                     creates: "{{ guest_disk_extra }}"
                   vars:
-                    guest_disk_size: "{{ 2 * (disk_size | int) }}"
+                    guest_disk_size: "{{ 2 * (molecule_disk_size | int) }}"
                   notify: kvm_disk_attach
 
                 - name: Manage permissions for extra KVM guest disk
@@ -115,17 +112,15 @@
         owner: "{{ libvirt_daemon_user }}"
         mode: "ug=rw,o="
       vars:
-        guest_hostname: "{{ inventory_hostname }}"
-        guest_disk_extra_path: "{{ libvirt_path }}/{{ inventory_hostname }}.add.img"
+        guest_disk_extra_path: "{{ guest_disk_extra }}"
         guest_disk_format: raw
-        guest_disk_xml: "{{ libvirt_path }}/{{ guest_hostname }}.disk.xml"
+        guest_disk_xml: "{{ libvirt_path }}/{{ inventory_hostname }}.disk.xml"
       delegate_to: localhost
       listen: kvm_disk_attach
 
     - name: Attach additional KVM guest disk
-      ansible.builtin.command: "virsh -c qemu:///system attach-device {{ guest_hostname }} --file {{ guest_disk_xml }} --config"
+      ansible.builtin.command: "virsh -c qemu:///system attach-device {{ inventory_hostname }} --file {{ guest_disk_xml }} --config"
       vars:
-        guest_hostname: "{{ inventory_hostname }}"
-        guest_disk_xml: "{{ libvirt_path }}/{{ guest_hostname }}.disk.xml"
+        guest_disk_xml: "{{ libvirt_path }}/{{ inventory_hostname }}.disk.xml"
       delegate_to: localhost
       listen: kvm_disk_attach
