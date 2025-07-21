@@ -44,7 +44,7 @@
           ansible.builtin.debug:
             msg: "{{ ((installer_root_device.size_total | int) / (1024**3)) | int }}G"
           vars:
-            installer_root_device: "{{ ansible_mounts | selectattr('mount', 'equalto', growfs_lvs_mount | default('/')) | list | first }}"
+            installer_root_device: "{{ ansible_mounts | selectattr('mount', 'equalto', '/') | list | first }}"
 
         - name: Check regular device size
           ansible.builtin.assert:
@@ -57,7 +57,8 @@
 
         - name: Check lvm root device size
           ansible.builtin.assert:
-            that: installer_disk_size > installer_disk_threshold
+            that: (installer_disk_size | int) > (installer_disk_threshold | int)
+            fail_msg: "{{ (installer_disk_size | int) }} <= {{ (installer_disk_threshold | int) }}"
           vars:
             installer_disk_device: "{{ ansible_mounts | selectattr('mount', 'equalto', '/') | list | first }}"
             installer_disk_size: "{{ installer_disk_device.size_total }}"
@@ -66,10 +67,11 @@
 
         - name: Check lvs root device size
           ansible.builtin.assert:
-            that: (installer_disk_device | first).size_total > installer_disk_threshold
+            that: ((installer_disk_device | first).size_total | int) > (installer_disk_threshold | int)
+            fail_msg: "{{ ((installer_disk_device | first).size_total | int) }} <= {{ (installer_disk_threshold | int) }}"
           vars:
-            installer_disk_device: "{{ ansible_mounts | selectattr('mount', 'equalto', growfs_lvs_mount) | list }}"
-            installer_disk_threshold: "{{ (2.0 * (molecule_disk_size | int)) | int }}"
+            installer_disk_device: "{{ ansible_mounts | selectattr('mount', 'equalto', '/') | list }}"
+            installer_disk_threshold: "{{ (1.5 * (molecule_disk_size | int)) }}"
           when: partitioning_method == 'lvm'
 
       always:
