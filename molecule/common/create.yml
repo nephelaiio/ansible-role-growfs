@@ -56,7 +56,7 @@
               when: partitioning_method == 'lvm'
               block:
                 - name: Create additional KVM disk for lvm partitioning
-                  ansible.builtin.command: "qemu-img create -f raw {{ guest_disk_extra }} {{ guest_disk_size }}"
+                  ansible.builtin.command: "qemu-img create -f qcow2 {{ guest_disk_extra }} {{ guest_disk_size }}"
                   args:
                     creates: "{{ guest_disk_extra }}"
                   vars:
@@ -113,7 +113,7 @@
         mode: "ug=rw,o="
       vars:
         guest_disk_extra_path: "{{ guest_disk_extra }}"
-        guest_disk_format: raw
+        guest_disk_format: qcow2
         guest_disk_xml: "{{ libvirt_path }}/{{ inventory_hostname }}.disk.xml"
       delegate_to: localhost
       listen: kvm_disk_attach

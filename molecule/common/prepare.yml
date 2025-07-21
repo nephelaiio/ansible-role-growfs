@@ -49,7 +49,7 @@
             debian_installer_username: molecule
             debian_installer_password: "{{ 'molecule' | password_hash('sha512') }}"
             debian_installer_sshkey:
-              - "{{ lookup('file', _libvirt_keypair + '.pub') }}"
+              - "{{ lookup('file', libvirt_privkey + '.pub') }}"
             debian_installer_interface: "{{ debian_guest.installer_interface }}"
             debian_installer_partman_method: "{{ debian_guest.partitioning_method }}"
             debian_installer_preseed_include: "{{ debian_guest.preseed_include | default('') }}"
