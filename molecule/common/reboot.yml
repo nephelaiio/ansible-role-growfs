@@ -1,28 +1,30 @@
 ---
 - name: Reboot guests
   hosts: all
+  connection: local
   gather_facts: false
   become: "{{ lookup('ansible.builtin.env', 'CI') | default('false') | bool }}"
   tasks:
     - name: Query active KVM guests
       ansible.builtin.command: "virsh -c qemu:///system list --state-running --name"
-      changed_when: false
       register: _kvm_guest_query
       delegate_to: localhost
+      changed_when: false
 
     - name: Shut down guests
       when: inventory_hostname in (_kvm_guest_query.stdout_lines | map('trim'))
       block:
-        - name: Shut down guest
-          community.general.shutdown:
+        - name: Stop KVM guests
+          ansible.builtin.command: "virsh -c qemu:///system destroy {{ inventory_hostname }}"
+          delegate_to: localhost
+          changed_when: true
 
-        - name: Wait for KVM guest shutdown
+        - name: Wait for shutdown to complete
           ansible.builtin.command: "virsh -c qemu:///system list --state-running --name"
           register: _kvm_guest_query
           failed_when: inventory_hostname in (_kvm_guest_query.stdout_lines | map('trim'))
           retries: 6
           delay: 10
-          become: "{{ _libvirt_become | bool }}"
           delegate_to: localhost
 
     - name: Restore KVM guest
