@@ -2,5 +2,15 @@
 - name: Reconfigure guest disks
   hosts: all
   become: true
-  roles:
-    - nephelaiio.growfs
+  gather_facts: false
+  tasks:
+    - name: Wait for connection
+      ansible.builtin.wait_for_connection:
+        timeout: 120
+
+    - name: Gather facts
+      ansible.builtin.setup:
+
+    - name: Include growfs role
+      ansible.builtin.include_role:
+        name: nephelaiio.growfs

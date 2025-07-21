@@ -1,18 +1,13 @@
 ---
-- name: Build dynamic inventory
-  ansible.builtin.import_playbook: inventory.yml
-
 - name: Reboot guests
-  hosts: guests
+  hosts: all
   gather_facts: false
-  vars_files:
-    - vars.yml
+  become: "{{ lookup('ansible.builtin.env', 'CI') | default('false') | bool }}"
   tasks:
     - name: Query active KVM guests
       ansible.builtin.command: "virsh -c qemu:///system list --state-running --name"
       changed_when: false
       register: _kvm_guest_query
-      become: "{{ _libvirt_become | bool }}"
       delegate_to: localhost
 
     - name: Shut down guests
@@ -34,7 +29,6 @@
       ansible.builtin.command: "virsh -c qemu:///system start {{ inventory_hostname }}"
       changed_when: true
       delegate_to: localhost
-      become: "{{ _libvirt_become | bool }}"
 
     - name: Wait for connection
       ansible.builtin.wait_for_connection:

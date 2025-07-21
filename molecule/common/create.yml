@@ -77,14 +77,6 @@
               ansible.builtin.command: "virsh -c qemu:///system start {{ inventory_hostname }}"
               delegate_to: localhost
 
-        - name: Wait for connection
-          ansible.builtin.wait_for_connection:
-            timeout: 120
-
-        - name: Gather facts
-          ansible.builtin.setup:
-          tags: always
-
       always:
         - name: Take screenshot of KVM guest
           delegate_to: localhost
