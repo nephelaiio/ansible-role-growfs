@@ -44,9 +44,6 @@ test: lint
 
 install:
 	@uv sync
-	@uv run ansible-galaxy collection install \
-		--force --no-deps \
-		.
 
 lint: install
 	uv run yamllint . -c .yamllint
