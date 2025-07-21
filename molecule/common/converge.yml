@@ -1,9 +1,6 @@
 ---
-- name: Build dynamic inventory
-  ansible.builtin.import_playbook: inventory.yml
-
 - name: Reconfigure guest disks
-  hosts: guests
+  hosts: all
   become: true
   roles:
     - nephelaiio.growfs

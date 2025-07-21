@@ -33,44 +33,47 @@ provisioner:
     hosts:
       all:
         vars:
-          ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
-
           growfs_device_filter: "vd.*"
 
           molecule_scenario: "${MOLECULE_SCENARIO_NAME}"
           molecule_distro: "{{ lookup('env', 'MOLECULE_DISTRO') }}"
           molecule_installer_url: "{{ lookup('env', 'MOLECULE_ISO') }}"
-          molecule_libvirt_netaddr: "{{ lookup('env', 'MOLECULE_NET', default='192.168.247.0/24') | ansible.utils.ipv4('network/prefix') }}"
-          molecule_libvirt_netsize: "{{ molecule_libvirt_netaddr | ansible.utils.ipaddr('prefix') }}"
-          molecule_libvirt_address: "{{ molecule_libvirt_netaddr | ansible.utils.nthhost(1) }}/{{ molecule_libvirt_netsize }}"
-          molecule_libvirt_network: "growfs"
           molecule_install_dir: "{{ lookup('env', 'MOLECULE_OUTPUT_DIR', default='/tmp/logs') }}"
-          molecule_kvm_guests:
-            - installer_hostname: "{{ molecule_distro }}-lvm-10g"
-              installer_disk_size: "{{ 10*(1024**3) }}"
-              installer_interface:
-                static: true
-                ipaddress: "{{ molecule_libvirt_netaddr | ansible.utils.nthhost(2) }}"
-                network: "{{ molecule_libvirt_netaddr | ansible.utils.ipaddr('network') }}"
-                netmask: "{{ molecule_libvirt_netaddr | ansible.utils.ipaddr('netmask') }}"
-                gateway: "{{ molecule_libvirt_address | ansible.utils.ipaddr('address') }}"
-                nameservers:
-                  - 1.1.1.1
-                  - 8.8.8.8
-              installer_partitioning_method: lvm
 
-            - installer_hostname: "{{ molecule_distro }}-static-10g"
-              installer_disk_size: "{{ 10*(1024**3) }}"
-              installer_interface:
+          libvirt_network: "{{ libvirt_project | basename | replace('_', '-') | replace('.', '-') }}"
+          libvirt_netaddr: "172.31.249.0/24"
+          libvirt_address: "{{ libvirt_netaddr | ansible.utils.nthhost(1) }}"
+          libvirt_project: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+          libvirt_path: "{{ libvirt_project }}/libvirt/{{ libvirt_network }}"
+          libvirt_scenario: "${MOLECULE_SCENARIO_NAME}"
+          libvirt_privkey: "{{ libvirt_path }}/id_rsa"
+          libvirt_platforms:
+            - name: "{{ molecule_distro }}-lvm-10g"
+              iso: "{{ libvirt_path }}/{{ molecule_distro }}-lvm-10g.iso"
+              size: "{{ 10*(1024**3) }}"
+              interface:
                 static: true
-                ipaddress: "{{ molecule_libvirt_netaddr | ansible.utils.nthhost(3) }}"
-                network: "{{ molecule_libvirt_netaddr | ansible.utils.ipaddr('network') }}"
-                netmask: "{{ molecule_libvirt_netaddr | ansible.utils.ipaddr('netmask') }}"
-                gateway: "{{ molecule_libvirt_address | ansible.utils.ipaddr('address') }}"
+                ipaddress: "{{ libvirt_netaddr | ansible.utils.nthhost(2) }}"
+                network: "{{ libvirt_netaddr | ansible.utils.ipaddr('network') }}"
+                netmask: "{{ libvirt_netaddr | ansible.utils.ipaddr('netmask') }}"
+                gateway: "{{ libvirt_address }}"
                 nameservers:
                   - 1.1.1.1
                   - 8.8.8.8
-              installer_partitioning_method: regular
+              partitioning_method: lvm
+            - name: "{{ molecule_distro }}-static-10g"
+              iso: "{{ libvirt_path }}/{{ molecule_distro }}-static.iso"
+              size: "{{ 10*(1024**3) }}"
+              interface:
+                static: true
+                ipaddress: "{{ libvirt_netaddr | ansible.utils.nthhost(3) }}"
+                network: "{{ libvirt_netaddr | ansible.utils.ipaddr('network') }}"
+                netmask: "{{ libvirt_netaddr | ansible.utils.ipaddr('netmask') }}"
+                gateway: "{{ libvirt_address }}"
+                nameservers:
+                  - 1.1.1.1
+                  - 8.8.8.8
+              partitioning_method: regular
 
 verifier:
   name: ansible
@@ -79,7 +82,14 @@ scenario:
     - dependency
     - create
   prepare_sequence:
+    - dependency
     - prepare
+  converge_sequence:
+    - dependency
+    - converge
+  verify_sequence:
+    - dependency
+    - verify
   test_sequence:
     - dependency
     - create

@@ -6,3 +6,4 @@ roles:
 collections:
   - community.general
   - nephelaiio.plugins
+  - nephelaiio.libvirt

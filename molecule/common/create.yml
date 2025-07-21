@@ -1,112 +1,131 @@
 ---
-- name: Configure KVM virtualization
-  ansible.builtin.import_playbook: kvm.yml
+- name: Create KVM guests
+  ansible.builtin.import_playbook: nephelaiio.libvirt.create
 
-- name: Spawn KVM guests
-  hosts: localhost
-  become: true
-  vars_files:
-    - vars.yml
+- name: Reconfigure KVM guest disks
+  hosts: all
+  gather_facts: false
+  pre_tasks:
+    - name: Wait for connection
+      ansible.builtin.wait_for_connection:
+        timeout: 1200
+
+- name: Reconfigure KVM guest disks
+  hosts: all
+  connection: local
+  gather_facts: false
+  become: "{{ lookup('ansible.builtin.env', 'CI') | default('false') | bool }}"
+  vars:
+    libvirt_daemon_user: "{{ _libvirt_daemon_user }}"
   tasks:
-    - name: Cache installer iso
-      ansible.builtin.get_url:
-        url: "{{ molecule_installer_url }}"
-        dest: "{{ _libvirt_path }}/{{ molecule_distro }}.iso"
+    - name: Reconfigure KVM guest storage
+      delegate_to: localhost
+      block:
+        - name: Stop KVM guests
+          ansible.builtin.command: "virsh -c qemu:///system destroy {{ inventory_hostname }}"
+          changed_when: true
 
-    - name: Build ubuntu installer isos
-      ansible.builtin.include_role:
-        name: nephelaiio.ubuntu_installer
-      vars:
-        ubuntu_installer_interface_name: enp1s0
-        ubuntu_installer_target_dir: "{{ _libvirt_path }}"
-        ubuntu_installer_image_url: "file://{{ _libvirt_path }}/{{ molecule_distro }}.iso"
-        ubuntu_installer_hostname: "{{ guest.installer_hostname }}"
-        ubuntu_installer_username: molecule
-        ubuntu_installer_password: "{{ 'molecule' | password_hash('sha512') }}"
-        ubuntu_installer_sshkey:
-          - "{{ lookup('file', _libvirt_keypair + '.pub') }}"
-        ubuntu_installer_interface: "{{ guest.installer_interface }}"
-        ubuntu_installer_partman_method: "{{ guest.installer_partitioning_method }}"
-      loop_control:
-        loop_var: guest
-        label: "{{ guest.installer_hostname }}"
-      loop: "{{ molecule_kvm_guests }}"
-      when: molecule_scenario == "ubuntu"
+        - name: Wait for shutdown to complete
+          ansible.builtin.command: "virsh -c qemu:///system list --state-running --name"
+          register: _kvm_guest_query
+          failed_when: inventory_hostname in (_kvm_guest_query.stdout_lines | map('trim'))
+          retries: 6
+          delay: 10
+          delegate_to: localhost
 
-    - name: Build debian installer isos
-      ansible.builtin.include_role:
-        name: nephelaiio.debian_installer
-      vars:
-        debian_installer_interface_name: enp1s0
-        debian_installer_target_dir: "{{ _libvirt_path }}"
-        debian_installer_image_url: "file://{{ _libvirt_path }}/{{ molecule_distro }}.iso"
-        debian_installer_hostname: "{{ guest.installer_hostname }}"
-        debian_installer_username: molecule
-        debian_installer_password: "{{ 'molecule' | password_hash('sha512') }}"
-        debian_installer_sshkey:
-          - "{{ lookup('file', _libvirt_keypair + '.pub') }}"
-        debian_installer_interface: "{{ guest.installer_interface }}"
-        debian_installer_partman_method: "{{ guest.installer_partitioning_method }}"
-        debian_installer_preseed_include: "{{ guest.installer_preseed_include | default('') }}"
-      loop_control:
-        loop_var: guest
-        label: "{{ guest.installer_hostname }}"
-      loop: "{{ molecule_kvm_guests }}"
-      when: molecule_scenario == "debian"
+        - name: Reconfigure KVM guest disks
+          vars:
+            guest_disk_base: "{{ libvirt_path }}/{{ inventory_hostname }}.img"
+            guest_disk_extra: "{{ libvirt_path }}/{{ inventory_hostname }}.add.img"
+          block:
+            - name: Stat KVM base disk
+              ansible.builtin.stat:
+                path: "{{ libvirt_path }}/{{ inventory_hostname }}.img"
+              register: guest_disk_query
 
-    - name: Query active KVM guests
-      ansible.builtin.command: "virsh list --all --name"
-      register: _kvm_guest_query
+            - name: Debug base disk info
+              ansible.builtin.debug:
+                msg: "{{ guest_disk_query.stat }}"
 
-    - name: Destroy KVM guest
-      ansible.builtin.command: "virsh destroy {{ item }}"
-      loop: "{{ molecule_kvm_guests | map(attribute='installer_hostname') }}"
-      when: item in (_kvm_guest_query.stdout_lines | map('trim'))
+            - name: Resize KVM base disks for static partitioning
+              ansible.builtin.command: "qemu-img resize -f raw {{ guest_disk_base }} {{ guest_disk_size }}"
+              vars:
+                guest_disk_size: "{{ 2 * (molecule_disk_size | int) }}"
+              when:
+                - partitioning_method == 'static'
+                - (guest_disk_size | int) > (guest_disk_query.stat.size | int)
 
-    - name: Destroy KVM guest disks
-      ansible.builtin.file:
-        path: "{{ _libvirt_path }}/{{ item }}.img"
-        state: absent
-      loop: "{{ molecule_kvm_guests | map(attribute='installer_hostname') }}"
+            - name: Manage disks for lvm partitioning
+              when: partitioning_method == 'lvm'
+              block:
+                - name: Create additional KVM disk for lvm partitioning
+                  ansible.builtin.command: "qemu-img create -f raw {{ guest_disk_extra }} {{ guest_disk_size }}"
+                  args:
+                    creates: "{{ guest_disk_extra }}"
+                  vars:
+                    guest_disk_size: "{{ 2 * (disk_size | int) }}"
+                  notify: kvm_disk_attach
 
-    - name: Create KVM guest disks
-      ansible.builtin.command: "qemu-img create {{ guest_disk }} {{ guest_disk_size }}"
-      args:
-        creates: "{{ guest_disk }}"
-      vars:
-        guest_disk: "{{ _libvirt_path }}/{{ guest.installer_hostname }}.img"
-        guest_disk_size: "{{ guest.installer_disk_size }}"
-      loop_control:
-        loop_var: guest
-        label: "{{ guest.installer_hostname }}"
-      loop: "{{ molecule_kvm_guests }}"
+                - name: Manage permissions for extra KVM guest disk
+                  ansible.builtin.file:
+                    path: "{{ guest_disk_extra }}"
+                    owner: "{{ libvirt_daemon_user }}"
+                    mode: "ug=rw,o="
+                  become: true
 
-    - name: Manage permissions for KVM guest disks
-      ansible.builtin.file:
-        path: "{{ _libvirt_path }}/{{ item }}.img"
-        owner: libvirt-qemu
-        group: kvm
-        mode: "uog=rw"
-      loop: "{{ molecule_kvm_guests | map(attribute='installer_hostname') }}"
+            - name: Flush handlers
+              ansible.builtin.meta: flush_handlers
 
-    - name: Template KVM guest XMLs
+            - name: Start KVM guest
+              ansible.builtin.command: "virsh -c qemu:///system start {{ inventory_hostname }}"
+              delegate_to: localhost
+
+        - name: Wait for connection
+          ansible.builtin.wait_for_connection:
+            timeout: 120
+
+        - name: Gather facts
+          ansible.builtin.setup:
+          tags: always
+
+      always:
+        - name: Take screenshot of KVM guest
+          delegate_to: localhost
+          block:
+            - name: Set debug facts
+              ansible.builtin.set_fact:
+                debug_output_screenshot: "{{ molecule_install_dir }}/{{ inventory_hostname }}.png"
+
+            - name: Create output directory
+              ansible.builtin.file:
+                state: directory
+                path: "{{ debug_output_screenshot | dirname }}"
+              delegate_to: localhost
+              run_once: true
+
+            - name: Take guest screenshot
+              ansible.builtin.command: "virsh -c qemu:///system screenshot {{ inventory_hostname }} {{ debug_output_screenshot }}"
+              delegate_to: localhost
+
+  handlers:
+    - name: Create definition for additional KVM guest disk
       ansible.builtin.template:
-        src: "vm.j2.xml"
-        dest: "{{ _libvirt_path }}/{{ item }}.xml"
-        mode: "u=rw,g=r,o="
+        src: disk.j2.xml
+        dest: "{{ guest_disk_xml }}"
+        owner: "{{ libvirt_daemon_user }}"
+        mode: "ug=rw,o="
       vars:
-        guest_hostname: "{{ item }}"
-        guest_network: "{{ molecule_libvirt_network }}"
-        guest_iso: "{{ _libvirt_path }}/{{ item }}.iso"
-        guest_disk_path: "{{ _libvirt_path }}/{{ item }}.img"
-        guest_mac: "{{ '52:54:00' | random_mac(seed=item) }}"
+        guest_hostname: "{{ inventory_hostname }}"
+        guest_disk_extra_path: "{{ libvirt_path }}/{{ inventory_hostname }}.add.img"
         guest_disk_format: raw
-      loop: "{{ molecule_kvm_guests | map(attribute='installer_hostname') }}"
+        guest_disk_xml: "{{ libvirt_path }}/{{ guest_hostname }}.disk.xml"
+      delegate_to: localhost
+      listen: kvm_disk_attach
 
-    - name: Create KVM guests
-      ansible.builtin.command: "virsh define {{ _libvirt_path }}/{{ item }}.xml --validate"
-      loop: "{{ molecule_kvm_guests | map(attribute='installer_hostname') }}"
-
-    - name: Start KVM guest
-      ansible.builtin.command: "virsh start {{ item }}"
-      loop: "{{ molecule_kvm_guests | map(attribute='installer_hostname') }}"
+    - name: Attach additional KVM guest disk
+      ansible.builtin.command: "virsh -c qemu:///system attach-device {{ guest_hostname }} --file {{ guest_disk_xml }} --config"
+      vars:
+        guest_hostname: "{{ inventory_hostname }}"
+        guest_disk_xml: "{{ libvirt_path }}/{{ guest_hostname }}.disk.xml"
+      delegate_to: localhost
+      listen: kvm_disk_attach

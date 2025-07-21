@@ -44,6 +44,9 @@ test: lint
 
 install:
 	@uv sync
+	@uv run ansible-galaxy collection install \
+		--force --no-deps \
+		.
 
 lint: install
 	uv run yamllint . -c .yamllint
@@ -57,6 +60,7 @@ ifeq (login,$(firstword $(MAKECMDGOALS)))
 endif
 
 dependency create prepare converge idempotence side-effect verify destroy cleanup reset list login:
+	rm -rf ansible_collections
 	ANSIBLE_COLLECTIONS_PATH=$(COLLECTION_PATH) \
 	ANSIBLE_ROLES_PATH=$(ROLE_PATH) \
 	MOLECULE_DISTRO=${MOLECULE_DISTRO} \
