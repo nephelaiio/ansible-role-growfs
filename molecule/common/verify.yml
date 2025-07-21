@@ -53,7 +53,7 @@
             installer_disk_device: "{{ ansible_mounts | selectattr('mount', 'equalto', '/') | list | first }}"
             installer_disk_size: "{{ installer_disk_device.size_total }}"
             installer_disk_threshold: "{{ (1.5 * (molecule_disk_size | int)) | int }}"
-          when: partitioning_method == 'static'
+          when: partitioning_method == 'regular'
 
         - name: Check lvm root device size
           ansible.builtin.assert:

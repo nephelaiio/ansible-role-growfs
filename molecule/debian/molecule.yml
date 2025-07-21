@@ -6,12 +6,9 @@ dependency:
     requirements-file: requirements.yml
 driver:
   name: default
-  options:
-    managed: false
-    ansible_connection_options:
-      ansible_connection: local
 platforms:
-  - name: installer
+  - name: growfs-debian-lvm-10g
+  - name: growfs-debian-static-10g
 provisioner:
   name: ansible
   log: true
@@ -30,50 +27,53 @@ provisioner:
     destroy: ../common/destroy.yml
     side_effect: ../common/reboot.yml
   inventory:
-    hosts:
+    group_vars:
       all:
-        vars:
-          growfs_device_filter: "vd.*"
+        libvirt_network: "nephelaiio-growfs"
+        libvirt_platforms: "{{ molecule_yml.platforms }}"
+        libvirt_address: "172.31.249.1/24"
+        libvirt_path: "{{ molecule_project }}/libvirt/nephelaiio-growfs"
+        libvirt_privkey: "{{ libvirt_path }}/id_rsa"
+        libvirt_nameservers:
+          - 1.1.1.1
+          - 8.8.8.8
 
-          molecule_scenario: "${MOLECULE_SCENARIO_NAME}"
-          molecule_distro: "{{ lookup('env', 'MOLECULE_DISTRO') }}"
-          molecule_installer_url: "{{ lookup('env', 'MOLECULE_ISO') }}"
-          molecule_install_dir: "{{ lookup('env', 'MOLECULE_OUTPUT_DIR', default='/tmp/logs') }}"
+        growfs_device_filter: "vd.*"
+        molecule_scenario: "${MOLECULE_SCENARIO_NAME}"
+        molecule_distro: "{{ lookup('env', 'MOLECULE_DISTRO') }}"
+        molecule_installer_url: "{{ lookup('env', 'MOLECULE_ISO') }}"
+        molecule_install_dir: "{{ lookup('env', 'MOLECULE_OUTPUT_DIR', default='/tmp/logs') }}"
+        molecule_disk_size: "{{ 10*(1024**3) }}"
+        molecule_network: "{{ libvirt_address | ansible.utils.ipaddr('network') }}"
+        molecule_netmask: "{{ libvirt_address | ansible.utils.ipaddr('netmask') }}"
+        molecule_prefix: "{{ libvirt_address | ansible.utils.ipaddr('prefix') }}"
+        molecule_netaddr: "{{ molecule_network }}/{{ molecule_prefix }}"
+        molecule_project: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
 
-          libvirt_network: "{{ libvirt_project | basename | replace('_', '-') | replace('.', '-') }}"
-          libvirt_netaddr: "172.31.249.0/24"
-          libvirt_address: "{{ libvirt_netaddr | ansible.utils.nthhost(1) }}"
-          libvirt_project: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
-          libvirt_path: "{{ libvirt_project }}/libvirt/{{ libvirt_network }}"
-          libvirt_scenario: "${MOLECULE_SCENARIO_NAME}"
-          libvirt_privkey: "{{ libvirt_path }}/id_rsa"
-          libvirt_platforms:
-            - name: "{{ molecule_distro }}-lvm-10g"
-              iso: "{{ libvirt_path }}/{{ molecule_distro }}-lvm-10g.iso"
-              size: "{{ 10*(1024**3) }}"
-              interface:
-                static: true
-                ipaddress: "{{ libvirt_netaddr | ansible.utils.nthhost(2) }}"
-                network: "{{ libvirt_netaddr | ansible.utils.ipaddr('network') }}"
-                netmask: "{{ libvirt_netaddr | ansible.utils.ipaddr('netmask') }}"
-                gateway: "{{ libvirt_address }}"
-                nameservers:
-                  - 1.1.1.1
-                  - 8.8.8.8
-              partitioning_method: lvm
-            - name: "{{ molecule_distro }}-static-10g"
-              iso: "{{ libvirt_path }}/{{ molecule_distro }}-static.iso"
-              size: "{{ 10*(1024**3) }}"
-              interface:
-                static: true
-                ipaddress: "{{ libvirt_netaddr | ansible.utils.nthhost(3) }}"
-                network: "{{ libvirt_netaddr | ansible.utils.ipaddr('network') }}"
-                netmask: "{{ libvirt_netaddr | ansible.utils.ipaddr('netmask') }}"
-                gateway: "{{ libvirt_address }}"
-                nameservers:
-                  - 1.1.1.1
-                  - 8.8.8.8
-              partitioning_method: regular
+    host_vars:
+      growfs-debian-lvm-10g:
+        libvirt_guest_address: "{{ molecule_netaddr | ansible.utils.nthhost(2) }}"
+        libvirt_guest_iso: "{{ libvirt_path }}/{{ inventory_hostname }}.iso"
+        partitioning_method: lvm
+        installer_interface:
+          static: true
+          ipaddress: "{{ libvirt_guest_address }}"
+          network: "{{ molecule_network }}"
+          netmask: "{{ molecule_netmask }}"
+          gateway: "{{ libvirt_address | ansible.utils.ipaddr('address') }}"
+          nameservers: "{{ libvirt_nameservers }}"
+
+      growfs-debian-static-10g:
+        libvirt_guest_address: "{{ molecule_netaddr | ansible.utils.nthhost(3) }}"
+        libvirt_guest_iso: "{{ libvirt_path }}/{{ inventory_hostname }}.iso"
+        partitioning_method: regular
+        installer_interface:
+          static: true
+          ipaddress: "{{ libvirt_guest_address }}"
+          network: "{{ molecule_network }}"
+          netmask: "{{ molecule_netmask }}"
+          gateway: "{{ libvirt_address | ansible.utils.ipaddr('address') }}"
+          nameservers: "{{ libvirt_nameservers }}"
 
 verifier:
   name: ansible
