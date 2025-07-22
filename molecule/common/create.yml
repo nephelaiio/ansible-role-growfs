@@ -19,7 +19,7 @@
 
     - name: Check regular device size
       ansible.builtin.assert:
-        that: disk_size < disk_threshold
+        that: (disk_size | int) < (disk_threshold | int)
         fail_msg: "{{ (disk_size | int) }} >= {{ (disk_threshold | int) }}"
       vars:
         disk_device: "{{ ansible_mounts | selectattr('mount', 'equalto', '/') | list | first }}"
