@@ -27,12 +27,12 @@ ROLE_PATH = $(MAKEFILE_DIR)/roles
 
 LOGIN_ARGS ?=
 
-ifeq (${MOLECULE_SCENARIO}, ubuntu)
-MOLECULE_DISTRO=${UBUNTU_DISTRO}
-MOLECULE_ISO=${UBUNTU_ISO}
-else ifeq (${MOLECULE_SCENARIO}, debian)
+ifeq (${MOLECULE_SCENARIO}, debian)
 MOLECULE_DISTRO=${DEBIAN_DISTRO}
 MOLECULE_ISO=${DEBIAN_ISO}
+else
+MOLECULE_DISTRO=${UBUNTU_DISTRO}
+MOLECULE_ISO=${UBUNTU_ISO}
 endif
 
 all: install version lint test
@@ -70,9 +70,12 @@ ignore:
 clean: destroy reset
 	@uv env remove $$(which python) >/dev/null 2>&1 || exit 0
 
-publish: build
-	uv run ansible-galaxy collection publish --api-key ${GALAXY_API_KEY} \
-		"${COLLECTION_NAMESPACE}-${COLLECTION_NAME}-${COLLECTION_VERSION}.tar.gz"
+publish:
+	@echo publishing repository ${GITHUB_REPOSITORY}
+	@echo GITHUB_ORGANIZATION=${GITHUB_ORG}
+	@echo GITHUB_REPOSITORY=${GITHUB_REPO}
+	uv run ansible-galaxy role import \
+		--api-key ${GALAXY_API_KEY} ${GITHUB_ORG} ${GITHUB_REPO}
 
 version:
 	@uv run molecule --version
