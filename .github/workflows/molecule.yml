@@ -18,8 +18,6 @@ jobs:
       matrix:
         include:
           - scenario: ubuntu
-            release: noble
-          - scenario: ubuntu
             release: jammy
           - scenario: debian
             release: bullseye
