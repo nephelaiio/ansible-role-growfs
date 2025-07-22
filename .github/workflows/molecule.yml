@@ -18,10 +18,14 @@ jobs:
       matrix:
         include:
           - scenario: ubuntu
+            release: noble
+          - scenario: ubuntu
             release: jammy
           - scenario: debian
             release: bullseye
           - scenario: debian
+            release: bookworm
+          - scenario: absolute
             release: bookworm
     steps:
       - name: Check out the codebase.
