@@ -10,6 +10,10 @@
       ansible.builtin.wait_for_connection:
         timeout: 1200
 
+    - name: Wait for install to complete
+      ansible.builtin.pause:
+        seconds: 300
+
 - name: Reconfigure KVM guest disks
   hosts: all
   connection: local

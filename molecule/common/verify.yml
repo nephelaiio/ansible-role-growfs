@@ -13,7 +13,7 @@
       block:
         - name: Wait for connection
           ansible.builtin.wait_for_connection:
-            timeout: 600
+            timeout: 300
 
         - name: Gather facts
           ansible.builtin.setup:
