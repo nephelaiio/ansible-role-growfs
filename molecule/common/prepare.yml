@@ -1,158 +1,57 @@
 ---
-- name: Build dynamic inventory
-  ansible.builtin.import_playbook: inventory.yml
+- name: Prepare KVM host
+  ansible.builtin.import_playbook: nephelaiio.libvirt.prepare
 
-
-- name: Reconfigure guest disks
-  hosts: guests
+- name: Create KVM guest installer isos
+  hosts: localhost
   gather_facts: false
-  become: true
-  pre_tasks:
-    - name: Recofigure guest storage
+  tasks:
+    - name: Create KVM keypair
+      ansible.builtin.command:
+        cmd: "ssh-keygen -t rsa -f {{ libvirt_privkey }} -q -P '' -C ''"
+        creates: "{{ libvirt_privkey }}"
+
+    - name: Cache installer iso
+      ansible.builtin.get_url:
+        url: "{{ molecule_installer_url }}"
+        dest: "{{ libvirt_path }}/{{ molecule_distro }}.iso"
+
+    - name: Build OS installer isos
+      become: true
       block:
-        - name: Query KVM guest info
-          community.libvirt.virt:
-            command: info
-          register: libvirt_info
-          delegate_to: localhost
-          run_once: true
-
-        - name: Shut down guest
-          when:
-            - inventory_hostname in libvirt_info
-            - libvirt_info[inventory_hostname].state == "running"
-          block:
-            - name: Wait for connection
-              ansible.builtin.wait_for_connection:
-                timeout: 1200
-
-            - name: Shut down guest
-              community.general.shutdown:
-
-            - name: Wait for shutdown to complete
-              ansible.builtin.pause:
-                seconds: 30
-
-            - name: Force kvm guest poweroff
-              ansible.builtin.shell: "virsh destroy {{ inventory_hostname }} >/dev/null 2>&1"
-              ignore_errors: true
-              failed_when: false
-              changed_when: false
-              delegate_to: localhost
-
-            - name: Wait for poweroff to complete
-              ansible.builtin.pause:
-                seconds: 30
-
-        - name: Reconfigure guest disks
-          delegate_to: localhost
-          block:
-            - name: Stat kvm base disk
-              ansible.builtin.stat:
-                path: "{{ molecule_libvirt_path }}/{{ inventory_hostname }}.img"
-              register: guest_disk_query
-
-            - name: Debug base disk info
-              ansible.builtin.debug:
-                msg: "{{ guest_disk_query.stat }}"
-
-            - name: Resize kvm base disks
-              ansible.builtin.command: "qemu-img resize -f raw {{ guest_disk }} {{ guest_disk_size }}"
-              vars:
-                guest_disk: "{{ molecule_libvirt_path }}/{{ inventory_hostname }}.img"
-                guest_disk_size: "{{ 2 * (disk_size | int) }}"
-              when: (guest_disk_size | int) > (guest_disk_query.stat.size | int)
-
-            - name: Stat additional kvm disk
-              ansible.builtin.stat:
-                path: "{{ molecule_libvirt_path }}/{{ inventory_hostname }}.add.img"
-              register: guest_addisk_query
-
-            - name: Create additional kvm disk for lvm instances
-              ansible.builtin.command: "qemu-img create -f raw {{ guest_disk }} {{ guest_disk_size }}"
-              args:
-                creates: "{{ guest_disk }}"
-              vars:
-                guest_disk: "{{ molecule_libvirt_path }}/{{ inventory_hostname }}.add.img"
-                guest_disk_size: "{{ 2 * (disk_size | int) }}"
-              when:
-                - not guest_addisk_query.stat.exists
-                - partitioning_method == 'lvm'
-              notify: attach kvm guest disk
-
-            - name: Manage permissions for extra kvm guest disk
-              ansible.builtin.file:
-                path: "{{ guest_disk }}"
-                owner: libvirt-qemu
-                group: kvm
-                mode: 0660
-              vars:
-                guest_disk: "{{ molecule_libvirt_path }}/{{ inventory_hostname }}.add.img"
-              when: partitioning_method == 'lvm'
-
-            - name: Flush handlers
-              ansible.builtin.meta: flush_handlers
-
-            - name: Start kvm guest
-              community.libvirt.virt:
-                name: "{{ inventory_hostname }}"
-                state: running
-
-        - name: Wait for connection
-          ansible.builtin.wait_for_connection:
-            timeout: 120
-
-        - name: Gather facts
-          ansible.builtin.setup:
-          tags: always
-
-      always:
-        - name: Set debug facts
-          ansible.builtin.set_fact:
-            debug_disk: "{{ disk_location }}.debug"
-            debug_hostdir: "{{ _hostdir }}"
-            debug_logfile: "{{ _logfile }}"
-            debug_crashdir: "{{ _crashdir }}"
-            debug_output_dir: "{{ molecule_install_dir }}"
-            debug_output_curtin: "{{ molecule_install_dir }}/{{ inventory_hostname }}.curtin.log"
-            debug_output_screenshot: "{{ molecule_install_dir }}/{{ inventory_hostname }}.png"
+        - name: Build ubuntu installer isos
+          ansible.builtin.include_role:
+            name: nephelaiio.ubuntu_installer
           vars:
-            _hostdir: "{{ molecule_libvirt_path }}/{{ inventory_hostname }}"
-            _logfile: "{{ _hostdir }}/var/log/installer/curtin-install.log"
-            _crashdir: "{{ _hostdir }}/var/crash/"
+            ubuntu_guest: "{{ hostvars[item] }}"
+            ubuntu_installer_interface_name: enp1s0
+            ubuntu_installer_target_dir: "{{ libvirt_path }}"
+            ubuntu_installer_image_url: "file://{{ libvirt_path }}/{{ molecule_distro }}.iso"
+            ubuntu_installer_hostname: "{{ item }}"
+            ubuntu_installer_username: molecule
+            ubuntu_installer_password: "{{ 'molecule' | password_hash('sha512') }}"
+            ubuntu_installer_sshkey:
+              - "{{ lookup('file', libvirt_privkey + '.pub') }}"
+            ubuntu_installer_interface: "{{ ubuntu_guest.installer_interface }}"
+            ubuntu_installer_partman_method: "{{ ubuntu_guest.partitioning_method }}"
+          loop: "{{ libvirt_platforms | map(attribute='name') }}"
+          when: molecule_scenario == "ubuntu"
 
-        - name: Create output directory
-          ansible.builtin.file:
-            state: directory
-            path: "{{ debug_output_dir }}"
-          delegate_to: localhost
-          run_once: true
-
-        - name: Take guest screenshot
-          ansible.builtin.command: "virsh screenshot {{ inventory_hostname }} {{ debug_output_screenshot }}"
-          delegate_to: localhost
-          become: true
-
-  handlers:
-    - name: Create definition for additional kvm guest disk
-      ansible.builtin.template:
-        src: disk.xml.j2
-        dest: "{{ guest_disk_xml }}"
-        owner: libvirt-qemu
-        group: kvm
-        mode: 0660
-      vars:
-        guest_hostname: "{{ inventory_hostname }}"
-        guest_disk_extra_path: "{{ molecule_libvirt_path }}/{{ inventory_hostname }}.add.img"
-        guest_disk_format: raw
-        guest_disk_xml: "{{ molecule_libvirt_path }}/{{ guest_hostname }}.disk.xml"
-      delegate_to: localhost
-      listen: attach kvm guest disk
-
-    - name: Attach additional kvm guest disk
-      ansible.builtin.command: "virsh attach-device {{ guest_hostname }} --file {{ guest_disk_xml }} --config"
-      vars:
-        guest_hostname: "{{ inventory_hostname }}"
-        guest_disk_xml: "{{ molecule_libvirt_path }}/{{ guest_hostname }}.disk.xml"
-      delegate_to: localhost
-      listen: attach kvm guest disk
+        - name: Build debian installer isos
+          ansible.builtin.include_role:
+            name: nephelaiio.debian_installer
+          vars:
+            debian_guest: "{{ hostvars[item] }}"
+            debian_installer_interface_name: enp1s0
+            debian_installer_target_dir: "{{ _libvirt_path }}"
+            debian_installer_image_url: "file://{{ libvirt_path }}/{{ molecule_distro }}.iso"
+            debian_installer_hostname: "{{ item }}"
+            debian_installer_username: molecule
+            debian_installer_password: "{{ 'molecule' | password_hash('sha512') }}"
+            debian_installer_sshkey:
+              - "{{ lookup('file', libvirt_privkey + '.pub') }}"
+            debian_installer_interface: "{{ debian_guest.installer_interface }}"
+            debian_installer_partman_method: "{{ debian_guest.partitioning_method }}"
+            debian_installer_preseed_include: "{{ debian_guest.preseed_include | default('') }}"
+          loop: "{{ libvirt_platforms | map(attribute='name') }}"
+          when: molecule_scenario == "debian"

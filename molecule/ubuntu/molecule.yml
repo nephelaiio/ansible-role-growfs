@@ -6,12 +6,9 @@ dependency:
     requirements-file: requirements.yml
 driver:
   name: default
-  options:
-    managed: false
-    ansible_connection_options:
-      ansible_connection: local
 platforms:
-  - name: installer
+  - name: growfs-ubuntu-lvm-10g
+  - name: growfs-ubuntu-static-10g
 provisioner:
   name: ansible
   log: true
@@ -30,59 +27,73 @@ provisioner:
     destroy: ../common/destroy.yml
     side_effect: ../common/reboot.yml
   inventory:
-    hosts:
+    group_vars:
       all:
-        vars:
-          ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+        libvirt_network: "nephelaiio-growfs"
+        libvirt_platforms: "{{ molecule_yml.platforms }}"
+        libvirt_address: "172.31.249.1/24"
+        libvirt_path: "{{ molecule_project }}/libvirt/nephelaiio-growfs"
+        libvirt_privkey: "{{ libvirt_path }}/id_rsa"
+        libvirt_nameservers:
+          - 1.1.1.1
+          - 8.8.8.8
 
-          growfs_device_filter: "vd.*"
+        growfs_device_filter: "vd.*"
+        molecule_scenario: "${MOLECULE_SCENARIO_NAME}"
+        molecule_distro: "{{ lookup('env', 'MOLECULE_DISTRO') }}"
+        molecule_installer_url: "{{ lookup('env', 'MOLECULE_ISO') }}"
+        molecule_install_dir: "{{ lookup('env', 'MOLECULE_OUTPUT_DIR', default='/tmp/logs') }}"
+        molecule_disk_size: "{{ 10*(1024**3) }}"
+        molecule_network: "{{ libvirt_address | ansible.utils.ipaddr('network') }}"
+        molecule_netmask: "{{ libvirt_address | ansible.utils.ipaddr('netmask') }}"
+        molecule_prefix: "{{ libvirt_address | ansible.utils.ipaddr('prefix') }}"
+        molecule_netaddr: "{{ molecule_network }}/{{ molecule_prefix }}"
+        molecule_project: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
 
-          molecule_scenario: "${MOLECULE_SCENARIO_NAME}"
-          molecule_distro: "{{ lookup('env', 'MOLECULE_DISTRO') }}"
-          molecule_iso: "{{ lookup('env', 'MOLECULE_ISO') }}"
-          molecule_installer_url: "{{ molecule_iso }}"
-          molecule_installer_dest: "file://{{ molecule_libvirt_path }}/{{ molecule_distro }}.iso"
-          molecule_libvirt_netaddr: "{{ lookup('env', 'MOLECULE_NET', default='192.168.248.0/24') | ansible.utils.ipv4('network/prefix') }}"
-          molecule_libvirt_netsize: "{{ molecule_libvirt_netaddr | ansible.utils.ipaddr('prefix') }}"
-          molecule_libvirt_address: "{{ molecule_libvirt_netaddr | ansible.utils.nthhost(1) }}/{{ molecule_libvirt_netsize }}"
-          molecule_libvirt_network: "growfs"
-          molecule_libvirt_path: "/var/lib/libvirt/growfs"
-          molecule_install_dir: "{{ lookup('env', 'MOLECULE_OUTPUT_DIR', default='/tmp/logs') }}"
-          molecule_kvm_keypair: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/kvm_key"
-          molecule_kvm_guests:
-            - installer_hostname: "{{ molecule_distro }}-lvm-10g"
-              installer_disk_size: "{{ 10*(1024**3) }}"
-              installer_interface:
-                static: true
-                ipaddress: "{{ molecule_libvirt_netaddr | ansible.utils.nthhost(2) }}"
-                network: "{{ molecule_libvirt_netaddr | ansible.utils.ipaddr('network') }}"
-                netmask: "{{ molecule_libvirt_netaddr | ansible.utils.ipaddr('netmask') }}"
-                gateway: "{{ molecule_libvirt_address | ansible.utils.ipaddr('address') }}"
-                nameservers:
-                  - 1.1.1.1
-                  - 8.8.8.8
-              installer_partitioning_method: lvm
+    host_vars:
+      growfs-ubuntu-lvm-10g:
+        libvirt_guest_address: "{{ molecule_netaddr | ansible.utils.nthhost(2) }}"
+        libvirt_guest_iso: "{{ libvirt_path }}/{{ inventory_hostname }}.iso"
+        partitioning_method: lvm
+        installer_interface:
+          static: true
+          ipaddress: "{{ libvirt_guest_address }}"
+          network: "{{ molecule_network }}"
+          netmask: "{{ molecule_netmask }}"
+          gateway: "{{ libvirt_address | ansible.utils.ipaddr('address') }}"
+          nameservers: "{{ libvirt_nameservers }}"
 
-            - installer_hostname: "{{ molecule_distro }}-static-10g"
-              installer_disk_size: "{{ 10*(1024**3) }}"
-              installer_interface:
-                static: true
-                ipaddress: "{{ molecule_libvirt_netaddr | ansible.utils.nthhost(3) }}"
-                network: "{{ molecule_libvirt_netaddr | ansible.utils.ipaddr('network') }}"
-                netmask: "{{ molecule_libvirt_netaddr | ansible.utils.ipaddr('netmask') }}"
-                gateway: "{{ molecule_libvirt_address | ansible.utils.ipaddr('address') }}"
-                nameservers:
-                  - 1.1.1.1
-                  - 8.8.8.8
-              installer_partitioning_method: regular
+      growfs-ubuntu-static-10g:
+        libvirt_guest_address: "{{ molecule_netaddr | ansible.utils.nthhost(3) }}"
+        libvirt_guest_iso: "{{ libvirt_path }}/{{ inventory_hostname }}.iso"
+        partitioning_method: regular
+        installer_interface:
+          static: true
+          ipaddress: "{{ libvirt_guest_address }}"
+          network: "{{ molecule_network }}"
+          netmask: "{{ molecule_netmask }}"
+          gateway: "{{ libvirt_address | ansible.utils.ipaddr('address') }}"
+          nameservers: "{{ libvirt_nameservers }}"
 
 verifier:
   name: ansible
 scenario:
-  test_sequence:
+  create_sequence:
     - dependency
     - create
+  prepare_sequence:
+    - dependency
     - prepare
+  converge_sequence:
+    - dependency
+    - converge
+  verify_sequence:
+    - dependency
+    - verify
+  test_sequence:
+    - dependency
+    - prepare
+    - create
     - converge
     - side_effect
     - verify

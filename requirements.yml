@@ -4,6 +4,6 @@ roles:
   - name: nephelaiio.debian_installer
   - name: nephelaiio.centos_installer
 collections:
-  - community.aws
   - community.general
   - nephelaiio.plugins
+  - nephelaiio.libvirt

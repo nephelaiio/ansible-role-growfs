@@ -17,22 +17,26 @@ The main use case for the role is to automatically grow partitions/filesystems o
 
 The role will implement the following disk management logic when applied to a target system:
 For non-lvm disks:
-* Expand last partition when containig device has over 5% available unpartitioned space
-* Grow mounted partition filesystems when applicable
 
-For lvm with emtpy disks:
-* Grow pvs when applicable
-* Partition empty disks and assign device to lvm volume group
-* Grow target lvm logical volume
-* Optionally create and mount a new lvm logical volume
+- Expand last partition when containing device has over 5% available unpartitioned space
+- Grow mounted partition filesystems when applicable
+
+For lvm with empty disks:
+
+- Grow pvs when applicable
+- Partition empty disks and assign device to lvm volume group
+- Grow target lvm logical volume
+- Optionally create and mount a new lvm logical volume
 
 The role will fail when any of the following conditions are found
-* A disk device filter (regex) is not defined
-* Volume group is not unique
-* Logical volume is not unique and an explicit selection has not been made
+
+- A disk device filter (regex) is not defined
+- Volume group is not unique
+- Logical volume is not unique and an explicit selection has not been made
 
 The role will exit as a no-op in the following cases:
-* No LVM is present and a new disk is found
+
+- No LVM is present and a new disk is found
 
 ## Role Variables
 
@@ -52,10 +56,10 @@ Please make sure your environment has [docker](https://www.docker.com) installed
 
 Role is tested against the following distributions (kvm guests):
 
-  * Ubuntu Focal
-  * Debian 11
+- Ubuntu Focal
+- Debian 11
 
-You can test the role directly from sources using command ` molecule test `
+You can test the role directly from sources using command `molecule test`
 
 ## License
 

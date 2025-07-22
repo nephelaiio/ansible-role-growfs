@@ -40,7 +40,7 @@
 - name: Determine lsblk syntax
   ansible.builtin.command: lsblk --help
   register: lsblk_command_help
-  tags:  skip_ansible_lint
+  tags: skip_ansible_lint
 
 - name: Register lvm facts
   ansible.builtin.set_fact:

@@ -1,40 +1,36 @@
 ---
-- name: Build dynamic inventory
-  ansible.builtin.import_playbook: inventory.yml
-
-
-- name: Reboot guest
-  hosts: guests
-  become: true
-  pre_tasks:
-
-    - name: Shut down guest
-      community.general.shutdown:
-
-    - name: Wait for shutdown to complete
-      ansible.builtin.pause:
-        seconds: 30
-
+- name: Reboot guests
+  hosts: all
+  connection: local
+  gather_facts: false
+  become: "{{ lookup('ansible.builtin.env', 'CI') | default('false') | bool }}"
   tasks:
-    - name: Start guests
+    - name: Query active KVM guests
+      ansible.builtin.command: "virsh -c qemu:///system list --state-running --name"
+      register: _kvm_guest_query
       delegate_to: localhost
+      changed_when: false
+
+    - name: Shut down guests
+      when: inventory_hostname in (_kvm_guest_query.stdout_lines | map('trim'))
       block:
+        - name: Stop KVM guests
+          ansible.builtin.command: "virsh -c qemu:///system destroy {{ inventory_hostname }}"
+          delegate_to: localhost
+          changed_when: true
 
-        - name: Force kvm guest poweroff
-          ansible.builtin.shell: "virsh destroy {{ inventory_hostname }} >/dev/null 2>&1"
-          tags: skip_ansible_lint
-          ignore_errors: true
-          failed_when: false
-          changed_when: false
+        - name: Wait for shutdown to complete
+          ansible.builtin.command: "virsh -c qemu:///system list --state-running --name"
+          register: _kvm_guest_query
+          failed_when: inventory_hostname in (_kvm_guest_query.stdout_lines | map('trim'))
+          retries: 6
+          delay: 10
+          delegate_to: localhost
 
-        - name: Wait for kvm guest poweroff
-          ansible.builtin.pause:
-            minutes: 2
-
-        - name: Start kvm guest
-          community.libvirt.virt:
-            name: "{{ inventory_hostname }}"
-            state: running
+    - name: Restore KVM guest
+      ansible.builtin.command: "virsh -c qemu:///system start {{ inventory_hostname }}"
+      changed_when: true
+      delegate_to: localhost
 
     - name: Wait for connection
       ansible.builtin.wait_for_connection:
