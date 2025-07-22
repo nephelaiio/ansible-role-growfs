@@ -34,7 +34,7 @@ provisioner:
         libvirt_address: "172.31.249.1/24"
         libvirt_path: "{{ molecule_project }}/libvirt/nephelaiio-growfs"
         libvirt_privkey: "{{ libvirt_path }}/id_rsa"
-        libvirt_disk_size: "{{ 10*(1024**3) }}"
+        libvirt_guest_size: "{{ 10*(1024**3) }}"
         libvirt_nameservers:
           - 1.1.1.1
           - 8.8.8.8
