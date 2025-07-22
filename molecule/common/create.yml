@@ -14,6 +14,9 @@
       ansible.builtin.pause:
         seconds: 300
 
+    - name: Gather facts
+      ansible.builtin.setup:
+
     - name: Check regular device size
       ansible.builtin.assert:
         that: disk_size < disk_threshold
