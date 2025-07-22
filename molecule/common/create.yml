@@ -14,6 +14,35 @@
       ansible.builtin.pause:
         seconds: 300
 
+    - name: Check regular device size
+      ansible.builtin.assert:
+        that: disk_size < disk_threshold
+        fail_msg: "{{ (disk_size | int) }} >= {{ (disk_threshold | int) }}"
+      vars:
+        disk_device: "{{ ansible_mounts | selectattr('mount', 'equalto', '/') | list | first }}"
+        disk_size: "{{ disk_device.size_total }}"
+        disk_threshold: "{{ (1.5 * (libvirt_disk_size | int)) | int }}"
+      when: partitioning_method == 'regular'
+
+    - name: Check lvm root device size
+      ansible.builtin.assert:
+        that: (disk_size | int) < (disk_threshold | int)
+        fail_msg: "{{ (disk_size | int) }} >= {{ (disk_threshold | int) }}"
+      vars:
+        disk_device: "{{ ansible_mounts | selectattr('mount', 'equalto', '/') | list | first }}"
+        disk_size: "{{ disk_device.size_total }}"
+        disk_threshold: "{{ (1.5 * (libvirt_disk_size | int)) | int }}"
+      when: partitioning_method == 'lvm'
+
+    - name: Check lvs root device size
+      ansible.builtin.assert:
+        that: ((disk_device | first).size_total | int) < (disk_threshold | int)
+        fail_msg: "{{ ((disk_device | first).size_total | int) }} >= {{ (disk_threshold | int) }}"
+      vars:
+        disk_device: "{{ ansible_mounts | selectattr('mount', 'equalto', '/') | list }}"
+        disk_threshold: "{{ (1.5 * (libvirt_disk_size | int)) }}"
+      when: partitioning_method == 'lvm'
+
 - name: Reconfigure KVM guest disks
   hosts: all
   connection: local
@@ -53,7 +82,7 @@
             - name: Resize KVM base disks for static partitioning
               ansible.builtin.command: "qemu-img resize -f qcow2 {{ guest_disk_base }} {{ guest_disk_size }}"
               vars:
-                guest_disk_size: "{{ 2 * (molecule_disk_size | int) }}"
+                guest_disk_size: "{{ 2 * (libvirt_disk_size | int) }}"
               when: (guest_disk_size | int) > (guest_disk_query.stat.size | int)
 
             - name: Manage disks for lvm partitioning
@@ -64,7 +93,7 @@
                   args:
                     creates: "{{ guest_disk_extra }}"
                   vars:
-                    guest_disk_size: "{{ 2 * (molecule_disk_size | int) }}"
+                    guest_disk_size: "{{ 2 * (libvirt_disk_size | int) }}"
                   notify: kvm_disk_attach
 
                 - name: Manage permissions for extra KVM guest disk
