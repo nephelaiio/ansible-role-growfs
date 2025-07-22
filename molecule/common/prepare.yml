@@ -35,7 +35,7 @@
             ubuntu_installer_interface: "{{ ubuntu_guest.installer_interface }}"
             ubuntu_installer_partman_method: "{{ ubuntu_guest.partitioning_method }}"
           loop: "{{ libvirt_platforms | map(attribute='name') }}"
-          when: molecule_scenario == "ubuntu"
+          when: molecule_scenario != "debian"
 
         - name: Build debian installer isos
           ansible.builtin.include_role:
