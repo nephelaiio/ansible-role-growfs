@@ -13,7 +13,7 @@ DEBIAN_SHASUMS = https://mirror.cogentco.com/debian-cd/${DEBIAN_DISTRO}/amd64/is
 DEBIAN_MIRROR = $$(dirname ${DEBIAN_SHASUMS})
 DEBIAN_BASENAME = $$(curl -s ${DEBIAN_SHASUMS} | grep "debian-[0-9]" | awk '{print $$2}')
 DEBIAN_ISO=${DEBIAN_MIRROR}/${DEBIAN_BASENAME}
-UBUNTU_DISTRO ?= jammy
+UBUNTU_DISTRO ?= noble
 UBUNTU_SHASUMS = https://releases.ubuntu.com/${UBUNTU_DISTRO}/SHA256SUMS
 UBUNTU_MIRROR = $$(dirname ${UBUNTU_SHASUMS})
 UBUNTU_BASENAME = $$(curl -s ${UBUNTU_SHASUMS} | grep "live-server-amd64" | awk '{print $$2}' | sed -e 's/\*//g')
@@ -27,10 +27,10 @@ ROLE_PATH = $(MAKEFILE_DIR)/roles
 
 LOGIN_ARGS ?=
 
-ifeq (${MOLECULE_SCENARIO}, ubuntu)
-MOLECULE_DISTRO=${UBUNTU_DISTRO}
-MOLECULE_ISO=${UBUNTU_ISO}
-else ifeq (${MOLECULE_SCENARIO}, debian)
+ifeq (${MOLECULE_SCENARIO}, debian)
+MOLECULE_DISTRO=${DEBIAN_DISTRO}
+MOLECULE_ISO=${DEBIAN_ISO}
+else
 MOLECULE_DISTRO=${DEBIAN_DISTRO}
 MOLECULE_ISO=${DEBIAN_ISO}
 endif
@@ -70,9 +70,12 @@ ignore:
 clean: destroy reset
 	@uv env remove $$(which python) >/dev/null 2>&1 || exit 0
 
-publish: build
-	uv run ansible-galaxy collection publish --api-key ${GALAXY_API_KEY} \
-		"${COLLECTION_NAMESPACE}-${COLLECTION_NAME}-${COLLECTION_VERSION}.tar.gz"
+publish:
+	@echo publishing repository ${GITHUB_REPOSITORY}
+	@echo GITHUB_ORGANIZATION=${GITHUB_ORG}
+	@echo GITHUB_REPOSITORY=${GITHUB_REPO}
+	uv run ansible-galaxy role import \
+		--api-key ${GALAXY_API_KEY} ${GITHUB_ORG} ${GITHUB_REPO}
 
 version:
 	@uv run molecule --version
