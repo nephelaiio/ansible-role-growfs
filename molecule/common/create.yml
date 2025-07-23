@@ -74,19 +74,29 @@
         - name: Reconfigure KVM guest disks
           block:
             - name: Stat KVM base disk
-              ansible.builtin.stat:
-                path: "{{ libvirt_path }}/{{ inventory_hostname }}.img"
+              ansible.builtin.command:
+                cmd: "qemu-img info {{ libvirt_path }}/{{ inventory_hostname }}.img --output=json"
               register: guest_disk_query
+              changed_when: false
+
+            - name: Set KVM disk facts
+              ansible.builtin.set_fact:
+                guest_disk_info: "{{ guest_disk_query.stdout | from_json }}"
+                guest_disk_size: "{{ 2 * (libvirt_guest_size | int) }}"
 
             - name: Debug base disk info
               ansible.builtin.debug:
-                msg: "{{ guest_disk_query.stat }}"
+                msg: "{{ guest_disk_info['virtual-size'] }}"
+
+            - name: Debug target guest_disk_size
+              ansible.builtin.debug:
+                msg: "{{ guest_disk_size }}"
 
             - name: Resize KVM base disks for static partitioning
               ansible.builtin.command: "qemu-img resize -f qcow2 {{ guest_disk_base }} {{ guest_disk_size }}"
-              vars:
-                guest_disk_size: "{{ 2 * (libvirt_guest_size | int) }}"
-              when: (guest_disk_size | int) > (guest_disk_query.stat.size | int)
+              when:
+                - partitioning_method == 'regular'
+                - (guest_disk_size | int) > (guest_disk_info['virtual-size'] | int)
 
             - name: Manage disks for lvm partitioning
               when: partitioning_method == 'lvm'
@@ -95,8 +105,6 @@
                   ansible.builtin.command: "qemu-img create -f qcow2 {{ guest_disk_extra }} {{ guest_disk_size }}"
                   args:
                     creates: "{{ guest_disk_extra }}"
-                  vars:
-                    guest_disk_size: "{{ 2 * (libvirt_guest_size | int) }}"
                   notify: kvm_disk_attach
 
                 - name: Manage permissions for extra KVM guest disk
