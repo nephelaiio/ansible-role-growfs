@@ -34,6 +34,7 @@ provisioner:
         libvirt_address: "172.31.249.1/24"
         libvirt_path: "{{ molecule_project }}/libvirt/nephelaiio-growfs"
         libvirt_privkey: "{{ libvirt_path }}/id_rsa"
+        libvirt_guest_size: "{{ 10*(1024**3) }}"
         libvirt_nameservers:
           - 1.1.1.1
           - 8.8.8.8
@@ -43,7 +44,6 @@ provisioner:
         molecule_distro: "{{ lookup('env', 'MOLECULE_DISTRO') }}"
         molecule_installer_url: "{{ lookup('env', 'MOLECULE_ISO') }}"
         molecule_install_dir: "{{ lookup('env', 'MOLECULE_OUTPUT_DIR', default='/tmp/logs') }}"
-        molecule_disk_size: "{{ 10*(1024**3) }}"
         molecule_network: "{{ libvirt_address | ansible.utils.ipaddr('network') }}"
         molecule_netmask: "{{ libvirt_address | ansible.utils.ipaddr('netmask') }}"
         molecule_prefix: "{{ libvirt_address | ansible.utils.ipaddr('prefix') }}"
